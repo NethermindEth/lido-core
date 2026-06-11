@@ -4,7 +4,7 @@ title: Consensus & Proof Reference
 contracts: [SSZ, GIndex]
 prereqs: []
 see_also: ["04","06","08"]
-ssot_for: [ssz-gindex, proof-model, eip-7002, eip-7251, eip-4788, withdrawal-credentials]
+ssot_for: [ssz-gindex, proof-model, eip-7002, eip-7251, eip-4788, withdrawal-credentials, cl-request-processing]
 ---
 # R — Consensus and Proof Reference
 
@@ -148,7 +148,9 @@ Lido-relevant facts only (distilled, not transcribed). Predeploy addresses verif
   (`WITHDRAWAL_REQUEST` in both `WithdrawalVaultEIP7002` and `common/lib/TriggerableWithdrawals`). Fee is dynamic
   (EIP-1559-style on a queue-excess counter): fee getter is `predeploy.staticcall("")` returning a `uint256`;
   the wrapper sends `call{value: fee}(request)` and refunds `msg.value − totalFee`. The system contract uses the
-  caller (`msg.sender`) as the withdrawal-request source, so the calling contract must hold the 0x01-source credential.
+  caller (`msg.sender`) as the withdrawal-request `source_address`; `process_withdrawal_request` then requires
+  `has_execution_withdrawal_credential` (`0x01` or `0x02`) and `withdrawal_credentials[12:] == source_address`, so the
+  calling contract must hold the validator's execution-withdrawal credential — for a V3 `StakingVault`, its `0x02` WC.
   *(One-line refs — never transcribed: in-state queue layout, dequeue/excess-update/count-reset helpers, synthetic
   deployment blob, 30M system-call gas, EIP-7685 wrapping.)*
 - **EIP-7251 (consolidation).** Predeploy `…007251` (`CONSOLIDATION_REQUEST_PREDEPLOY_ADDRESS`). Calldata = **96
@@ -161,7 +163,7 @@ Lido-relevant facts only (distilled, not transcribed). Predeploy addresses verif
   the buffer use the `historical_summaries` fallback (flow 4).
 - **Withdrawal-credential types.** `0x00` BLS (legacy, not used for new Lido validators); `0x01` Eth1-address
   (`0x01 ‖ 11 zero bytes ‖ 20-byte addr`, Core Pool → Lido `WithdrawalVault`, CL-spec cap MIN_ACTIVATION_BALANCE =
-  32 ETH); `0x02` compounding (Electra, V3 `StakingVault` = `0x02 ‖ 12 zero bytes ‖ address(this)`, CL-spec cap
+  32 ETH); `0x02` compounding (Electra, V3 `StakingVault` = `0x02 ‖ 11 zero bytes ‖ address(this)`, CL-spec cap
   MAX_EFFECTIVE_BALANCE_ELECTRA = 2048 ETH, required for 7251). These caps are CL-consensus-spec terms, not in-repo
   constants (only `MIN_ACTIVATION_BALANCE` appears, in a `Dashboard` doc-comment). **Invariant:** a validator never
   requested-and-initiated to exit has `exitEpoch == FAR_FUTURE_EPOCH` (`type(uint64).max`) — the property VEDV
@@ -172,8 +174,102 @@ Lido-relevant facts only (distilled, not transcribed). Predeploy addresses verif
   activation.
 
 *(SUMMARIZE-not-copy, one-line each: Pectra committee/attestation EIP-7549, sync-committee, blob EIP-7691,
-proposer-index, `process_slashings`, full `BeaconState`/`BeaconBlockBody` dumps, engine APIs,
-`process_pending_deposits`/churn detail, sweep machinery — all out of in-repo scope.)*
+proposer-index, `process_slashings`, full `BeaconState`/`BeaconBlockBody` dumps, engine APIs — all out of in-repo
+scope. The CL request-processing model — `process_withdrawal_request` / `process_consolidation_request` /
+`process_deposit_request` and the churn/queue/sweep mechanics — is distilled below in
+[Consensus-layer request processing](#consensus-layer-request-processing-the-seam).)*
+
+## Consensus-layer request processing (the seam)
+
+The in-scope code submits EL-triggered requests — EIP-7002 withdrawals/exits (`TriggerableWithdrawals`,
+`WithdrawalVaultEIP7002`), EIP-7251 consolidations (`ValidatorConsolidationRequests`), EIP-6110 deposits (the
+PDG predeposit → activation path) — and proves CL state (`CLProofVerifier`, `ValidatorExitDelayVerifier`). A
+successful on-chain submission only means the request was encoded and the fee was paid; the consensus layer then
+runs `process_*_request` against live beacon state, applying a validation ladder, caps, and queue interactions.
+Each ladder step is a **silent skip / cap / queue**: the EL submission returns success and the fee is spent, but
+the resulting CL state change may be nothing, or a capped/queued amount that differs from the requested one. The
+blocks below distill that model as the CL behavior of each request.
+
+### EIP-7002 — `process_withdrawal_request`
+
+`amount` is a big-endian `uint64`; `amount == FULL_EXIT_REQUEST_AMOUNT (== 0)` marks a full exit, any
+`amount > 0` a partial withdrawal. Each guard below is a silent `return` — no state change, and no revert reaches
+the EL caller:
+
+```text
+1. pending_partial_withdrawals queue full (len == PENDING_PARTIAL_WITHDRAWALS_LIMIT) ∧ not a full-exit  -> skip
+2. request pubkey is not a known validator                                                              -> skip
+3. !has_execution_withdrawal_credential(validator)  (WC is neither 0x01 nor 0x02)                        -> skip
+   ∨ validator.withdrawal_credentials[12:] != request.source_address                                     -> skip
+4. validator not active (is_active_validator false)                                                      -> skip
+5. validator.exit_epoch != FAR_FUTURE_EPOCH  (an exit was already initiated)                             -> skip
+6. current_epoch < validator.activation_epoch + SHARD_COMMITTEE_PERIOD  (validator too young)            -> skip
+```
+
+Past the ladder, behavior splits on `amount`:
+
+- **Full exit** (`amount == 0`): initiates the exit **only if `get_pending_balance_to_withdraw(index) == 0`**; if
+  the validator has any pending partial withdrawal queued, the full-exit request is consumed with no effect.
+- **Partial** (`amount > 0`): additionally requires `has_compounding_withdrawal_credential` (a `0x01` validator
+  can never partial-withdraw via 7002), `effective_balance >= MIN_ACTIVATION_BALANCE`, and
+  `balance > MIN_ACTIVATION_BALANCE + pending_balance_to_withdraw`; if any of these does not hold, the request is
+  consumed with no effect. When all hold, the queued amount is **capped** at
+  `to_withdraw = min(amount, balance − MIN_ACTIVATION_BALANCE − pending_balance_to_withdraw)`, so the queued
+  withdrawal can be smaller than `amount`; its `withdrawable_epoch` is churn-scheduled
+  (`compute_exit_epoch_and_update_churn(to_withdraw) + MIN_VALIDATOR_WITHDRAWABILITY_DELAY`).
+
+When the queued partial is later swept (`get_pending_partial_withdrawals`), it is **re-capped at withdrawal time**
+to `min(balance − MIN_ACTIVATION_BALANCE, amount)` and is paid only while the validator still satisfies
+`is_eligible_for_partial_withdrawals` (`exit_epoch == FAR_FUTURE_EPOCH ∧ effective_balance >= MIN_ACTIVATION_BALANCE
+∧ balance > MIN_ACTIVATION_BALANCE`); otherwise that queued entry is skipped for the sweep.
+
+### EIP-7251 — `process_consolidation_request` / `is_valid_switch_to_compounding_request`
+
+The request carries `source_pubkey ‖ target_pubkey`. There are two distinct paths:
+
+- **Switch-to-compounding** (`source_pubkey == target_pubkey`): valid (per
+  `is_valid_switch_to_compounding_request`) only if the source pubkey is known,
+  `withdrawal_credentials[12:] == source_address`, the source has `has_eth1_withdrawal_credential` (it is `0x01`),
+  the source is active, and its `exit_epoch == FAR_FUTURE_EPOCH`. When valid, `switch_to_compounding_validator`
+  flips the WC prefix to `COMPOUNDING_WITHDRAWAL_PREFIX (0x02)` and `queue_excess_active_balance` queues
+  `balance − MIN_ACTIVATION_BALANCE` (when positive) as a pending deposit. This is the only effect a
+  `source == target` request can have; an already-`0x02` validator cannot re-switch (it lacks
+  `has_eth1_withdrawal_credential`).
+- **Real consolidation** (`source_pubkey != target_pubkey`): a silent `return` on any of, in spec order — the
+  `source == target` re-check; `pending_consolidations` full (== `PENDING_CONSOLIDATIONS_LIMIT`);
+  `get_consolidation_churn_limit(state) <= MIN_ACTIVATION_BALANCE`; source or target pubkey unknown; source
+  `!has_execution_withdrawal_credential` ∨ source `withdrawal_credentials[12:] != source_address`; **target
+  `!has_compounding_withdrawal_credential` (target is not `0x02`)**; source not active; target not active; source
+  `exit_epoch != FAR_FUTURE_EPOCH`; target `exit_epoch != FAR_FUTURE_EPOCH`; source too young
+  (`current_epoch < source.activation_epoch + SHARD_COMMITTEE_PERIOD`); **`get_pending_balance_to_withdraw(source)
+  > 0`**. Only when all pass does the CL churn-schedule the source's exit
+  (`compute_consolidation_epoch_and_update_churn`) and append a `PendingConsolidation`. (Per [`06`](./06-vaults.md#core-flows):
+  post-consolidation rewards above the source's effective balance sweep to the *source* WC, not the target.)
+
+### EIP-6110 — `process_deposit_request` + `process_pending_deposits`
+
+`process_deposit_request` does not activate a validator; it sets `deposit_requests_start_index` (if unset) and
+appends a `PendingDeposit` (with `slot = state.slot`). Activation happens later in `process_pending_deposits`,
+which is finality-gated (a deposit past the finalized slot stops processing), bounded by
+`MAX_PENDING_DEPOSITS_PER_EPOCH` per epoch, and churn-limited (`available_for_processing = deposit_balance_to_consume
++ get_activation_exit_churn_limit`; a deposit that does not fit the remaining churn stops processing for the epoch).
+A deposit whose validator is already exiting is postponed past its `withdrawable_epoch`; one whose validator is
+already withdrawn is applied to balance without consuming churn. So an EL deposit request → active validator is
+**not instantaneous** — this is the window in which `PredepositGuarantee`'s WC proof lands (the WC is provable
+before activation completes).
+
+### Exit timing & churn — `initiate_validator_exit` / `compute_exit_epoch_and_update_churn`
+
+An accepted exit is not immediate. `initiate_validator_exit` returns early if `exit_epoch != FAR_FUTURE_EPOCH`
+(already exiting); otherwise it sets `exit_epoch = compute_exit_epoch_and_update_churn(effective_balance)` — the
+next epoch in the balance-churn exit queue, lower-bounded by `compute_activation_exit_epoch(current_epoch)` — and
+`withdrawable_epoch = exit_epoch + MIN_VALIDATOR_WITHDRAWABILITY_DELAY`. Separately, an exit can only be *initiated*
+once `current_epoch >= activation_epoch + SHARD_COMMITTEE_PERIOD` (the eligibility floor enforced in
+`process_withdrawal_request`, `process_voluntary_exit`, and `process_consolidation_request`); this is the same
+floor `ValidatorExitDelayVerifier` reconstructs as "earliest eligible to exit" in [`08`](./08-exits.md#core-flows).
+`process_voluntary_exit` **hard-asserts** `get_pending_balance_to_withdraw == 0` (a block-level assertion), where
+the 7002 full-exit path treats the same condition as a silent skip. The VEDV invariant proves `exit_epoch` is
+*unset* at the proven slot (no exit scheduled), not that a requested exit will be scheduled.
 
 ## Key constants
 
@@ -192,6 +288,12 @@ proposer-index, `process_slashings`, full `BeaconState`/`BeaconBlockBody` dumps,
 | EIP-4788 buffer | 8192 slots | beacon-root ring-buffer depth; older slots use `historical_summaries`. |
 | WC prefixes | `0x00` / `0x01` / `0x02` | BLS / Eth1-address / compounding. |
 | GIndex packing | `(gI << 8) \| pow` | `index = bytes32 >> 8`, `pow = uint8(bytes32)`, `width = 1 << pow`. |
+| `FULL_EXIT_REQUEST_AMOUNT` (CL-spec term, not an in-repo constant) | 0 | EIP-7002 full-exit sentinel `amount`; the in-repo encoder has no named constant (see the "EIP-7002 full-exit amount" row). |
+| `COMPOUNDING_WITHDRAWAL_PREFIX` (CL-spec term, not an in-repo constant) | `0x02` | WC prefix `has_compounding_withdrawal_credential` matches; the 7251 switch/consolidation target prefix. |
+| `PENDING_PARTIAL_WITHDRAWALS_LIMIT` (CL-spec term, not an in-repo constant) | `2**27` | partial-withdrawal queue cap; once full, only full exits process (7002). |
+| `PENDING_CONSOLIDATIONS_LIMIT` (CL-spec term, not an in-repo constant) | `2**18` | consolidation queue cap; once full, consolidations skip (7251). |
+| `SHARD_COMMITTEE_PERIOD` (CL-spec term, not an in-repo constant) | 256 epochs | min active age before an exit/consolidation can be initiated. |
+| `MIN_VALIDATOR_WITHDRAWABILITY_DELAY` (CL-spec term, not an in-repo constant) | 256 epochs | `withdrawable_epoch − exit_epoch` offset applied on exit. |
 
 ## Source references
 
@@ -202,3 +304,5 @@ proposer-index, `process_slashings`, full `BeaconState`/`BeaconBlockBody` dumps,
 - Consumers (boundary): `contracts/0.8.25/vaults/predeposit_guarantee/CLProofVerifier.sol` (`GI_FIRST_VALIDATOR_PREV`/`CURR`, `PIVOT_SLOT`, `GI_STATE_ROOT`, `concat`, `BEACON_ROOTS`); `contracts/0.8.25/ValidatorExitDelayVerifier.sol` (`FAR_FUTURE_EPOCH`, `GI_FIRST_HISTORICAL_SUMMARY_*`, `SLOTS_PER_HISTORICAL_ROOT`, `BEACON_ROOTS`); `contracts/0.8.9/WithdrawalVaultEIP7002.sol` + `contracts/common/lib/TriggerableWithdrawals.sol` (`WITHDRAWAL_REQUEST`); `contracts/0.8.25/vaults/ValidatorConsolidationRequests.sol` (`CONSOLIDATION_REQUEST_PREDEPLOY_ADDRESS`).
 
 **Official docs (context/docs/...):** EIP-7002 / EIP-7251 / EIP-4788 / EIP-6110 specs; the Electra (Pectra) consensus-spec; `run-on-lido/stvaults/tech-documentation/pdg.md` and `consolidation.md`.
+
+**CL request-processing (distilled from the Electra/Pectra consensus-spec):** `process_withdrawal_request`, `process_consolidation_request` / `is_valid_switch_to_compounding_request` / `switch_to_compounding_validator` / `queue_excess_active_balance`, `process_deposit_request` / `process_pending_deposits`, `initiate_validator_exit` / `compute_exit_epoch_and_update_churn` / `compute_consolidation_epoch_and_update_churn`, `process_voluntary_exit`, `get_pending_balance_to_withdraw`, `is_eligible_for_partial_withdrawals` / `get_pending_partial_withdrawals`, `has_execution_withdrawal_credential` / `has_compounding_withdrawal_credential` / `has_eth1_withdrawal_credential`.

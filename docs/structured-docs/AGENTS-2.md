@@ -6,12 +6,12 @@ The routing table below is the in-scope set (23 contracts); it is the per-contra
 unit (the **Scope load** is). Scope-1 Core-Pool contracts are trusted boundary edges only — see [`AGENTS-1.md`](./AGENTS-1.md).
 
 ## Scope load
-`00, 06, 07, R, 08` — the full V3-stVaults set, loaded together into one agent context (gated ≤26k tokens, lossless).
+`00, 06, 07, R, 08` — the full V3-stVaults set, loaded together into one agent context (gated ≤30k tokens; the S2 ceiling was raised from 26k for the deliberate CL request-processing seam distilled into `R`).
 (`00` is lean orientation; the VaultHub↔Accounting bad-debt seam is folded into `06`, so full `03` is not loaded; validator exits in `08`.)
 
 ## Using the docs
 - [`00-architecture-overview.md`](./00-architecture-overview.md) is the orientation — module map + the four critical flows.
-- The routing table maps each in-scope contract to its **primary** module (its home) and **secondary** modules (the seams). `prereqs` = read-first. The whole scope loads in full (see **Scope load** above; gated **≤ 26k tokens**); per-contract routing remains for targeted navigation within it. A `VaultHub` audit needs only `06`: the Accounting-side bad-debt seam is folded into `06`'s bad-debt flow, so full `03` is not loaded in this scope.
+- The routing table maps each in-scope contract to its **primary** module (its home) and **secondary** modules (the seams). `prereqs` = read-first. The whole scope loads in full (see **Scope load** above; gated **≤ 30k tokens** for Scope 2); per-contract routing remains for targeted navigation within it. A `VaultHub` audit needs only `06`: the Accounting-side bad-debt seam is folded into `06`'s bad-debt flow, so full `03` is not loaded in this scope.
 - Claims are cited by **symbol name**, not line numbers, so they resolve against live source.
 - **Source-of-truth & precedence:** where docs disagree, the **per-contract module is canonical**. The cross-contract role index lives in [`07` role matrix](./07-governance-permissions.md#role-matrix-high-impact-roles-only) — a derived navigation aid; on any conflict the cited per-contract module wins.
 - The V3 vault docs live outside `context/docs/docs/` — in the V3 Technical Paper (`context/docs/static/Lido_V3_Whitepaper.pdf`) and the `context/docs/run-on-lido/stvaults/` tree.
