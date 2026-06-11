@@ -32,7 +32,7 @@ Three permissioning systems are layered: (1) **Aragon ACL** on legacy 0.4.24 (`L
 | `Lido` | `STAKING_PAUSE_ROLE` / `STAKING_CONTROL_ROLE` | Agent, governed by DG | Stop submissions / set stake-rate limit |
 | `Lido` | `UNSAFE_CHANGE_DEPOSITED_VALIDATORS_ROLE` | Agent, governed by DG | Dangerous manual counter override |
 | `NodeOperatorsRegistry` | `MANAGE_NODE_OPERATOR_ROLE` | Agent / Easy Track | Add/deactivate operators |
-| `NodeOperatorsRegistry` | `SET_NODE_OPERATOR_LIMIT_ROLE` | Easy Track factory | Vet keys (routine, optimistic) |
+| `NodeOperatorsRegistry` | `SET_NODE_OPERATOR_LIMIT_ROLE` | Agent → Easy Track factory | Vet keys (routine, optimistic) |
 | `NodeOperatorsRegistry` | `STAKING_ROUTER_ROLE` | `StakingRouter` | SR drives the module |
 | `StakingRouter` | `DEFAULT_ADMIN_ROLE` | Agent, governed by DG | Grants other roles |
 | `StakingRouter` | `MANAGE_WITHDRAWAL_CREDENTIALS_ROLE` | Agent, governed by DG | Rotate protocol WC |
@@ -47,7 +47,7 @@ Three permissioning systems are layered: (1) **Aragon ACL** on legacy 0.4.24 (`L
 | `WithdrawalQueue` | `PAUSE_ROLE` / `RESUME_ROLE` | GateSeal + ResealManager / ResealManager | Emergency halt |
 | `WithdrawalQueue` | `FINALIZE_ROLE` | `Lido` (via Accounting) | Finalize during report |
 | `WithdrawalQueue` | `ORACLE_ROLE` | `AccountingOracle` | onOracleReport (bunker) |
-| `TriggerableWithdrawalsGateway` | `ADD_FULL_WITHDRAWAL_REQUEST_ROLE` | DAO (future CSM/VEBO) | Trigger exits |
+| `TriggerableWithdrawalsGateway` | `ADD_FULL_WITHDRAWAL_REQUEST_ROLE` | `ValidatorsExitBusOracle` | Trigger exits |
 | `Burner` | `REQUEST_BURN_SHARES_ROLE` | **`Accounting` + `CSM_ACCOUNTING` only** | Pre-approved share burns — see #4 below |
 | `Burner` | `REQUEST_BURN_MY_STETH_ROLE` | Agent / Insurance fund | Voluntary burn |
 | `Burner` | `DEFAULT_ADMIN_ROLE`, proxy admin | Agent, governed by DG | Recovery fns are permissionless (no role) |
@@ -168,7 +168,7 @@ DG/Escrow/GateSeal numerics are deployment parameters in external repos — conf
 - `0.8.9/LidoLocator.sol` — `Config`, the 22 `public immutable` getters, `_assertNonZero` (`ZeroAddress`), `coreComponents`/`oracleReportComponents`.
 - `0.8.9/proxy/OssifiableProxy.sol` — `proxy__ossify`/`proxy__upgradeTo`/`proxy__upgradeToAndCall`/`proxy__changeAdmin`, `onlyAdmin` (`ProxyIsOssified`/`NotAdmin`), `proxy__getIsOssified`, events `ProxyOssified`/`AdminChanged`.
 - `upgrade/V3Template.sol` — `_assertFinalACL` (final-ACL truth: `AGENT` as `DEFAULT_ADMIN_ROLE` + proxy admin; `REQUEST_BURN_SHARES_ROLE` = `ACCOUNTING`+`CSM_ACCOUNTING`; `PAUSE_ROLE` = `GATE_SEAL`+`RESEAL_MANAGER`; `RESUME_ROLE` = `RESEAL_MANAGER`; `REPORT_REWARDS_MINTED_ROLE` = `ACCOUNTING`; zero-holder for ORSC limit roles, `VAULT_MASTER_ROLE`, `REDEMPTION_MASTER_ROLE`), `_assertEasyTrackFactoriesAdded`.
-- `upgrade/V3VoteScript.sol` — revokes `REQUEST_BURN_SHARES_ROLE` from `Lido`/curated/SimpleDVT/old-CSM-accounting on the old Burner; grants `REPORT_REWARDS_MINTED_ROLE`/PDG `PAUSE_ROLE`/config-manager to `AGENT`.
+- `upgrade/V3VoteScript.sol` — revokes `REQUEST_BURN_SHARES_ROLE` from `Lido`/curated/SimpleDVT/old-CSM-accounting on the old Burner; grants `REPORT_REWARDS_MINTED_ROLE` to `Accounting`, and PDG `PAUSE_ROLE`/config-manager to `AGENT`.
 - External authorities: `GateSeal` (Vyper), `lidofinance/dual-governance` (`Timelock`/`Executor`, `Escrow`, `ResealManager`), Aragon `AGENT`/Voting, `lidofinance/easy-track`.
 
 **Official docs (context/docs/...):** `lido-dao.md`, `contracts/lido-locator.md`, `contracts/gate-seal.md`, `contracts/ossifiable-proxy.md`, `guides/dg-guide.md`, `guides/easy-track-guide.md`; external `dual-governance/docs/specification.md` (authoritative state-machine + escrow spec).

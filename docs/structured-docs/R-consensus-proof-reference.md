@@ -58,7 +58,7 @@ never by the proof submitter (see flow 3).
 ### 2. Leaf reconstruction — hashTreeRoot
 
 The leaf fed to `verifyProof` is normally a container root the contract computes itself, so a submitter cannot
-forge it. `hashTreeRoot(Validator)` and `hashTreeRoot(BeaconBlockHeader)` SSZ-merkleize the 8-field containers
+forge it. `hashTreeRoot(Validator)` and `hashTreeRoot(BeaconBlockHeader)` SSZ-merkleize their fields (`Validator` has 8, `BeaconBlockHeader` 5)
 (pad to 8 leaves, pairwise SHA-256 up the balanced tree). Two endianness/encoding gotchas the implementation must
 match the CL exactly:
 
@@ -125,7 +125,12 @@ External: BEACON_ROOTS (0x..0Beac02) staticcall + SHA-256 (0x02). View-only.
 ```
 
 So VEDV reads `exitEpoch` (by reconstructing the validator leaf), PDG reads `withdrawalCredentials` (folded into the
-proven leaf). For slots **older than the 8192-slot buffer**, step 0 cannot resolve the timestamp; the verifier
+proven leaf). Before the proven `slot` selects the PREV/CURR fork GIndex (the `PIVOT_SLOT` choice in flow 3),
+`CLProofVerifier._verifySlot` binds the user-supplied `slot`/`proposerIndex` to a Merkle branch (`proof[len-2]` via
+`SLOT_PROPOSER_PARENT_PROOF_OFFSET`, revert `InvalidSlot`) — blocking a cross-slot proof replay that would let a
+caller pick a favorable fork GIndex. This `_verifySlot` step is PDG-only; VEDV shares the `PIVOT_SLOT` fork-GIndex
+selection (`_getValidatorGI`) but instead pins `slot`/`proposerIndex` via full-header `hashTreeRoot` equality
+(`_verifyBeaconBlockRoot`), so it neither imports `CLProofVerifier` nor calls `_verifySlot`. For slots **older than the 8192-slot buffer**, step 0 cannot resolve the timestamp; the verifier
 instead proves the old block root through the beacon state's `historical_summaries` accumulator (Capella+): with
 `targetSlot` and `recentSlot`, compute `summaryIndex = (targetSlot − CAPELLA_SLOT) / SLOTS_PER_HISTORICAL_ROOT` and
 `rootIndex = targetSlot % SLOTS_PER_HISTORICAL_ROOT`, then `verifyProof` the old header against the recent block's
@@ -143,7 +148,7 @@ Lido-relevant facts only (distilled, not transcribed). Predeploy addresses verif
   (`WITHDRAWAL_REQUEST` in both `WithdrawalVaultEIP7002` and `common/lib/TriggerableWithdrawals`). Fee is dynamic
   (EIP-1559-style on a queue-excess counter): fee getter is `predeploy.staticcall("")` returning a `uint256`;
   the wrapper sends `call{value: fee}(request)` and refunds `msg.value − totalFee`. The system contract uses the
-  caller (`msg.sender`) as the withdrawal target, so the calling contract must hold the 0x01-source credential.
+  caller (`msg.sender`) as the withdrawal-request source, so the calling contract must hold the 0x01-source credential.
   *(One-line refs — never transcribed: in-state queue layout, dequeue/excess-update/count-reset helpers, synthetic
   deployment blob, 30M system-call gas, EIP-7685 wrapping.)*
 - **EIP-7251 (consolidation).** Predeploy `…007251` (`CONSOLIDATION_REQUEST_PREDEPLOY_ADDRESS`). Calldata = **96

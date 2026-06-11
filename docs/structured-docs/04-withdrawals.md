@@ -62,7 +62,7 @@ NFT owner → WithdrawalQueue.claimWithdrawal(id) / claimWithdrawals(ids[], hint
   → eth = _calculateClaimableEther: batchRate>checkpoint.maxShareRate ? shares*maxShareRate/E27 : cumulativeStETH delta
   → claimed=true; _burn(id); lockedEtherAmount -= eth; low-level call eth → recipient
 ```
-`hints` are checkpoint indices supplied by the client, validated by `_findCheckpointHint` (binary search over `[1, lastCheckpointIndex]`); `claimWithdrawal` (no hint) runs that search itself (O(log n)), costing more gas. 1-2 wei dust accrues per request from `/E27_PRECISION_BASE` rounding. Claiming stays available while paused.
+Client-supplied `hints` are range-checked in `_calculateClaimableEther` (reverting `InvalidHint`); `_findCheckpointHint` (binary search over `[1, lastCheckpointIndex]`) is the hint generator used by `findCheckpointHints` and by the no-hint `claimWithdrawal` (which runs the search itself, O(log n), costing more gas). 1-2 wei dust accrues per request from `/E27_PRECISION_BASE` rounding. Claiming stays available while paused.
 
 ### 4. Bunker mode (oracle-set sentinel)
 `AccountingOracle` → `WithdrawalQueue.onOracleReport(isBunkerNow, bunkerStartTimestamp, currentReportTimestamp)`, gated `_checkRole(ORACLE_ROLE)`. Entering sets `BUNKER_MODE_SINCE_TIMESTAMP_POSITION` to `_bunkerStartTimestamp` (oracle-supplied activation time, NOT `block.timestamp`); exiting writes sentinel `BUNKER_MODE_DISABLED_TIMESTAMP = type(uint256).max`. `isBunkerModeActive()` is `bunkerModeSinceTimestamp() < BUNKER_MODE_DISABLED_TIMESTAMP`. The flag is opaque on-chain — only `AccountingOracle` writes it; the daemon derives `isBunkerMode` from LIP-23 heuristics.
@@ -83,12 +83,12 @@ TWG.triggerFullWithdrawals{value}(validatorsData[], refundRecipient, EXIT_TYPE) 
   → _refundFee(refund, refundRecipient)                     // recipient==0 ⇒ msg.sender; revert FeeRefundFailed
 External: EIP-7002 predeploy, StakingRouter.
 ```
-Why two `_checkFee`s differ: TWG forwards **exactly** `totalFee` and refunds the surplus (`msg.value >= totalFee`), but `WithdrawalVaultEIP7002._checkFee` requires `msg.value == fee` **exactly** (`IncorrectFee`) — the vault tolerates no slack, so TWG sizes the forwarded value precisely. `preservesEthBalance` on both asserts each contract's own balance is unchanged, so no ETH is stranded or skimmed. `onValidatorExitTriggered` runs only after the predeploy calls succeed (atomic tx), keeping module exit-accounting 1:1 with accepted EIP-7002 requests. `ADD_FULL_WITHDRAWAL_REQUEST_ROLE` is DAO-controlled, reached via VEB ([`08`](./08-exits.md#core-flows)); the `StakingVault` path uses a **separate** `TriggerableWithdrawals` lib, NOT this gateway ([`06`](./06-vaults.md#core-flows)).
+Why two `_checkFee`s differ: TWG forwards **exactly** `totalFee` and refunds the surplus (`msg.value >= totalFee`), but `WithdrawalVaultEIP7002._checkFee` requires `msg.value == fee` **exactly** (`IncorrectFee`) — the vault tolerates no slack, so TWG sizes the forwarded value precisely. `preservesEthBalance` on both asserts each contract's own balance is unchanged, so no ETH is stranded or skimmed. `onValidatorExitTriggered` runs only after the predeploy calls succeed (atomic tx), keeping module exit-accounting 1:1 with accepted EIP-7002 requests. `ADD_FULL_WITHDRAWAL_REQUEST_ROLE` is held by VEBO (granted at deploy), reached via VEB ([`08`](./08-exits.md#core-flows)); the `StakingVault` path uses a **separate** `TriggerableWithdrawals` lib, NOT this gateway ([`06`](./06-vaults.md#core-flows)).
 
 ### 7. Admin — pause, resume, rate-limit, NFT metadata, recovery
 ```text
 PAUSE_ROLE  → WQ.pauseFor/pauseUntil ; TWG.pauseFor/pauseUntil          (GateSeal can pause)
-RESUME_ROLE → WQ.resume ; TWG.resume                                    (deployed paused)
+RESUME_ROLE → WQ.resume ; TWG.resume                                    (WQ deploys paused; TWG deploys RESUMED)
 TW_EXIT_LIMIT_MANAGER_ROLE → TWG.setExitRequestLimit(max, exitsPerFrame, frameDurationInSec)
 MANAGE_TOKEN_URI_ROLE      → WQ721.setBaseURI / setNFTDescriptorAddress
 anyone → WithdrawalVault.recoverERC20/recoverERC721 → always to immutable TREASURY   (no ETH-recovery path)
@@ -110,7 +110,7 @@ struct WithdrawalRequest {        // WithdrawalQueueBase
 ```
 **CEI / rounding / ordering hazards.** Burn-before-finalize (flow 2): shares are committed for burn though `finalize` runs later in the same tx — atomicity holds, but treat `prefinalize` numbers and `finalize`'s `msg.value` as a coupled pair (mismatch reverts `TooMuchEtherToFinalize`). Claim is CEI-clean (state flipped before the low-level ETH `call`), so no reentrancy lever (`claimed`/`_burn` precede the transfer). Discount math floors via integer `/E27_PRECISION_BASE` ⇒ protocol-favouring 1-2 wei dust.
 
-**ExitLimitUtils sliding window.** Packed `ExitRequestLimitData` of five `uint32`s: `maxExitRequestsLimit`, `prevExitRequestsLimit`, `prevTimestamp`, `frameDurationInSec`, `exitsPerFrame`. `calculateCurrentExitLimit(now)` restores `(framesPassed * exitsPerFrame)` since `prevTimestamp`, capped at `max`; returns `prev` unchanged inside a frame or when `exitsPerFrame==0`. `updatePrevExitLimit` advances `prevTimestamp` only by whole frames (`passedTime -= passedTime % frameDuration`) so sub-frame time is not lost. `isExitLimitSet()` is `max != 0`; when unset, TWG/VEB treat the limit as `type(uint256).max` (no throttle). `setExitLimits` carries forward `exitsUsed = max - currentLimit`. Reverts: `TooLargeMaxExitRequestsLimit`/`TooLargeFrameDuration` (uint32), `TooLargeExitsPerFrame` (> max), `ZeroFrameDuration`.
+**ExitLimitUtils sliding window.** Packed `ExitRequestLimitData` of five `uint32`s: `maxExitRequestsLimit`, `prevExitRequestsLimit`, `prevTimestamp`, `frameDurationInSec`, `exitsPerFrame`. `calculateCurrentExitLimit(now)` restores `prevExitRequestsLimit + framesPassed * exitsPerFrame` since `prevTimestamp`, capped at `max`; returns `prev` unchanged inside a frame or when `exitsPerFrame==0`. `updatePrevExitLimit` advances `prevTimestamp` only by whole frames (`passedTime -= passedTime % frameDuration`) so sub-frame time is not lost. `isExitLimitSet()` is `max != 0`; when unset, TWG/VEB treat the limit as `type(uint256).max` (no throttle). `setExitLimits` carries forward `exitsUsed = max - currentLimit`. Reverts: `TooLargeMaxExitRequestsLimit`/`TooLargeFrameDuration` (uint32), `TooLargeExitsPerFrame` (> max), `ZeroFrameDuration`.
 
 ## External interactions
 ```text

@@ -26,7 +26,7 @@ ssot_for: [exit-bus-publication, exit-delay-proof, triggerable-exits-veb-side]
 The VEB resolves packed exit requests from a previously delivered hash (registry in Internal mechanics) and escalates a full exit to the gateway; the EIP-7002 fee/refund, per-pubkey predeploy call, and `StakingRouter.onValidatorExitTriggered` all run inside TWG ([`04`](./04-withdrawals.md#core-flows)).
 ```text
 VEB.triggerExits(exitsData, exitDataIndexes, refundRecipient)  // payable, whenResumed, preservesEthBalance, PERMISSIONLESS
-  → require msg.value>0; indexes non-empty + strictly increasing; hash delivered; moduleId!=0
+  → require msg.value>0; indexes non-empty + strictly increasing; hash delivered; moduleId!=0 (checked per selected index)
   → TWG.triggerFullWithdrawals{value: msg.value}(validatorsData[], refundRecipient, EXIT_TYPE)   // → 04: gateway fee/refund + EIP-7002 predeploy
 External: TriggerableWithdrawalsGateway (→ 04).
 ```
