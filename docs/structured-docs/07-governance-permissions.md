@@ -24,7 +24,7 @@ Three permissioning systems are layered: (1) **Aragon ACL** on legacy 0.4.24 (`L
 
 ## Role matrix (high-impact roles only)
 
-> **Derived cross-contract index — not the source of truth.** A navigation aid only. The SSOT for any role is the inline mention at its flow step in the owning per-contract module. **On any conflict, the cited per-contract module wins.** Holders below are the post-V3 final ACL: the OZ-`AccessControl` rows on `Burner`, `VaultHub`, `OperatorGrid`, `LazyOracle`, `AccountingOracle`, `OracleReportSanityChecker`, `Accounting`, `PredepositGuarantee` and `StakingRouter` are the ones `V3Template._assertFinalACL` actually asserts (verified against source; see Errata #5 for the exact per-contract `DEFAULT_ADMIN_ROLE`/proxy-admin breakdown); the remaining rows (Aragon-ACL `Lido`/`NodeOperatorsRegistry` roles, `WithdrawalQueue` operational roles, `DepositSecurityModule.owner`, etc.) are sourced from the owning per-contract module, not from the template assertion.
+> **Derived cross-contract index — not the source of truth.** A navigation aid only. The SSOT for any role is the inline mention at its flow step in the owning per-contract module. **On any conflict, the cited per-contract module wins.** Holders below are the post-V3 final ACL: the OZ-`AccessControl` rows on `Burner`, `VaultHub`, `OperatorGrid`, `LazyOracle`, `AccountingOracle`, `OracleReportSanityChecker`, `Accounting`, `PredepositGuarantee` and `StakingRouter` are the ones `V3Template._assertFinalACL` actually asserts; the remaining rows (Aragon-ACL `Lido`/`NodeOperatorsRegistry` roles, `WithdrawalQueue` operational roles, `DepositSecurityModule.owner`, etc.) are sourced from the owning per-contract module, not from the template assertion.
 
 | Contract | Role | Holder (final ACL) | Notes |
 |---|---|---|---|
@@ -48,7 +48,7 @@ Three permissioning systems are layered: (1) **Aragon ACL** on legacy 0.4.24 (`L
 | `WithdrawalQueue` | `FINALIZE_ROLE` | `Lido` (via Accounting) | Finalize during report |
 | `WithdrawalQueue` | `ORACLE_ROLE` | `AccountingOracle` | onOracleReport (bunker) |
 | `TriggerableWithdrawalsGateway` | `ADD_FULL_WITHDRAWAL_REQUEST_ROLE` | `ValidatorsExitBusOracle` | Trigger exits |
-| `Burner` | `REQUEST_BURN_SHARES_ROLE` | **`Accounting` + `CSM_ACCOUNTING` only** | Pre-approved share burns — see #4 below |
+| `Burner` | `REQUEST_BURN_SHARES_ROLE` | **`Accounting` + `CSM_ACCOUNTING` only** | Pre-approved share burns |
 | `Burner` | `REQUEST_BURN_MY_STETH_ROLE` | Agent / Insurance fund | Voluntary burn |
 | `Burner` | `DEFAULT_ADMIN_ROLE`, proxy admin | Agent, governed by DG | Recovery fns are permissionless (no role) |
 | `VaultHub` | `VALIDATOR_EXIT_ROLE` / `BAD_DEBT_MASTER_ROLE` | `VAULTS_ADAPTER` | full vault set in [`06`](./06-vaults.md) |
@@ -57,9 +57,9 @@ Three permissioning systems are layered: (1) **Aragon ACL** on legacy 0.4.24 (`L
 | `OperatorGrid` | `REGISTRY_ROLE` | `EVM_SCRIPT_EXECUTOR` + `VAULTS_ADAPTER` | Easy Track + adapter |
 | `DepositSecurityModule` | `owner` | Agent, governed by DG | full admin (single address) |
 
-**Errata #4 (verified):** `REQUEST_BURN_SHARES_ROLE` holders are exactly `Accounting` and `CSM_ACCOUNTING` — `V3Template._assertFinalACL` sets `holders[0]=ACCOUNTING; holders[1]=CSM_ACCOUNTING` and asserts via `_assertOZRoleHolders`. `Lido`/`WithdrawalQueue`/`VaultHub` do **not** hold it (on the *new* Burner it is granted to `ACCOUNTING` + `CSM_ACCOUNTING` only; on the *old* Burner the V3 vote explicitly revokes it from `Lido`, the curated module, SimpleDVT, and CSM accounting — items 1.7–1.10, then `_assertZeroOZRoleHolders(OLD_BURNER, requestBurnSharesRole)`).
+**`REQUEST_BURN_SHARES_ROLE` holders.** Exactly `Accounting` and `CSM_ACCOUNTING` — `V3Template._assertFinalACL` sets `holders[0]=ACCOUNTING; holders[1]=CSM_ACCOUNTING` and asserts via `_assertOZRoleHolders`. `Lido`/`WithdrawalQueue`/`VaultHub` do **not** hold it (on the *new* Burner it is granted to `ACCOUNTING` + `CSM_ACCOUNTING` only; on the *old* Burner the V3 vote explicitly revokes it from `Lido`, the curated module, SimpleDVT, and CSM accounting — items 1.7–1.10, then `_assertZeroOZRoleHolders(OLD_BURNER, requestBurnSharesRole)`).
 
-**Errata #5 (verified):** `DEFAULT_ADMIN_ROLE` and every `OssifiableProxy` admin = the Aragon **`AGENT`**, governed by DG — not "the DG Timelock holds it." `_assertFinalACL` asserts both `_assertSingleOZRoleHolder(..., DEFAULT_ADMIN_ROLE, AGENT)` **and** `_assertProxyAdmin(..., AGENT)` across Burner, VaultHub, OperatorGrid, LazyOracle, AccountingOracle and PredepositGuarantee; `OracleReportSanityChecker` gets the `DEFAULT_ADMIN_ROLE` assertion only, `Accounting` the proxy-admin assertion only, and `StakingRouter` neither (its `REPORT_REWARDS_MINTED_ROLE` = `ACCOUNTING` is asserted instead).
+**Admin & proxy-admin holders.** `DEFAULT_ADMIN_ROLE` and every `OssifiableProxy` admin = the Aragon **`AGENT`**, governed by DG — DG governs the `AGENT` rather than holding the role directly. `_assertFinalACL` asserts both `_assertSingleOZRoleHolder(..., DEFAULT_ADMIN_ROLE, AGENT)` **and** `_assertProxyAdmin(..., AGENT)` across Burner, VaultHub, OperatorGrid, LazyOracle, AccountingOracle and PredepositGuarantee; `OracleReportSanityChecker` gets the `DEFAULT_ADMIN_ROLE` assertion only, `Accounting` the proxy-admin assertion only, and `StakingRouter` neither (its `REPORT_REWARDS_MINTED_ROLE` = `ACCOUNTING` is asserted instead).
 
 ## Core flows
 
@@ -171,4 +171,4 @@ DG/Escrow/GateSeal numerics are deployment parameters in external repos — conf
 - `upgrade/V3VoteScript.sol` — revokes `REQUEST_BURN_SHARES_ROLE` from `Lido`/curated/SimpleDVT/old-CSM-accounting on the old Burner; grants `REPORT_REWARDS_MINTED_ROLE` to `Accounting`, and PDG `PAUSE_ROLE`/config-manager to `AGENT`.
 - External authorities: `GateSeal` (Vyper), `lidofinance/dual-governance` (`Timelock`/`Executor`, `Escrow`, `ResealManager`), Aragon `AGENT`/Voting, `lidofinance/easy-track`.
 
-**Official docs (context/docs/...):** `lido-dao.md`, `contracts/lido-locator.md`, `contracts/gate-seal.md`, `contracts/ossifiable-proxy.md`, `guides/dg-guide.md`, `guides/easy-track-guide.md`; external `dual-governance/docs/specification.md` (authoritative state-machine + escrow spec).
+**Official docs (docs/docs/):** `lido-dao.md`, `contracts/lido-locator.md`, `contracts/gate-seal.md`, `contracts/ossifiable-proxy.md`, `guides/dg-guide.md`, `guides/easy-track-guide.md`; external `dual-governance/docs/specification.md` (authoritative state-machine + escrow spec).

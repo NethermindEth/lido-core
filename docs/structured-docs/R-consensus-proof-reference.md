@@ -140,7 +140,7 @@ still-buffered block) is the EIP-4788 root; everything else hangs off it by SSZ 
 
 ## Distilled external specs
 
-Lido-relevant facts only (distilled, not transcribed). Predeploy addresses verified against source constants below.
+Lido-relevant facts only.
 
 - **EIP-7002 (triggerable withdrawals/exits).** Request = **56 bytes** (`WITHDRAWAL_REQUEST_CALLDATA_LENGTH`) =
   48-byte pubkey ++ big-endian `uint64` amount (`WITHDRAWAL_AMOUNT_LENGTH = 8`); `amount = 0` ⇒ full exit (no
@@ -151,7 +151,7 @@ Lido-relevant facts only (distilled, not transcribed). Predeploy addresses verif
   caller (`msg.sender`) as the withdrawal-request `source_address`; `process_withdrawal_request` then requires
   `has_execution_withdrawal_credential` (`0x01` or `0x02`) and `withdrawal_credentials[12:] == source_address`, so the
   calling contract must hold the validator's execution-withdrawal credential — for a V3 `StakingVault`, its `0x02` WC.
-  *(One-line refs — never transcribed: in-state queue layout, dequeue/excess-update/count-reset helpers, synthetic
+  *(Not covered here: in-state queue layout, dequeue/excess-update/count-reset helpers, synthetic
   deployment blob, 30M system-call gas, EIP-7685 wrapping.)*
 - **EIP-7251 (consolidation).** Predeploy `…007251` (`CONSOLIDATION_REQUEST_PREDEPLOY_ADDRESS`). Calldata = **96
   bytes** = source pubkey ‖ target pubkey (`2 × 48`). Merges a source validator into a `0x02` (compounding) target;
@@ -173,10 +173,9 @@ Lido-relevant facts only (distilled, not transcribed). Predeploy addresses verif
   the activation queue and is churn-limited (`get_activation_exit_churn_limit`), so PDG's WC proof can predate
   activation.
 
-*(SUMMARIZE-not-copy, one-line each: Pectra committee/attestation EIP-7549, sync-committee, blob EIP-7691,
-proposer-index, `process_slashings`, full `BeaconState`/`BeaconBlockBody` dumps, engine APIs — all out of in-repo
-scope. The CL request-processing model — `process_withdrawal_request` / `process_consolidation_request` /
-`process_deposit_request` and the churn/queue/sweep mechanics — is distilled below in
+*(Out of in-repo scope: Pectra committee/attestation EIP-7549, sync-committee, blob EIP-7691,
+proposer-index, `process_slashings`, full `BeaconState`/`BeaconBlockBody` dumps, engine APIs. The CL request-processing model — `process_withdrawal_request` / `process_consolidation_request` /
+`process_deposit_request` and the churn/queue/sweep mechanics — is detailed below in
 [Consensus-layer request processing](#consensus-layer-request-processing-the-seam).)*
 
 ## Consensus-layer request processing (the seam)
@@ -303,6 +302,6 @@ the 7002 full-exit path treats the same condition as a silent skip. The VEDV inv
 - `contracts/common/lib/BeaconTypes.sol` — `Validator`, `BeaconBlockHeader` containers.
 - Consumers (boundary): `contracts/0.8.25/vaults/predeposit_guarantee/CLProofVerifier.sol` (`GI_FIRST_VALIDATOR_PREV`/`CURR`, `PIVOT_SLOT`, `GI_STATE_ROOT`, `concat`, `BEACON_ROOTS`); `contracts/0.8.25/ValidatorExitDelayVerifier.sol` (`FAR_FUTURE_EPOCH`, `GI_FIRST_HISTORICAL_SUMMARY_*`, `SLOTS_PER_HISTORICAL_ROOT`, `BEACON_ROOTS`); `contracts/0.8.9/WithdrawalVaultEIP7002.sol` + `contracts/common/lib/TriggerableWithdrawals.sol` (`WITHDRAWAL_REQUEST`); `contracts/0.8.25/vaults/ValidatorConsolidationRequests.sol` (`CONSOLIDATION_REQUEST_PREDEPLOY_ADDRESS`).
 
-**Official docs (context/docs/...):** EIP-7002 / EIP-7251 / EIP-4788 / EIP-6110 specs; the Electra (Pectra) consensus-spec; `run-on-lido/stvaults/tech-documentation/pdg.md` and `consolidation.md`.
+**External specs (not in repo):** EIP-7002 / EIP-7251 / EIP-4788 / EIP-6110; the Electra (Pectra) consensus-spec. **Official docs (`docs/`):** `run-on-lido/stvaults/tech-documentation/pdg.md` and `consolidation.md`.
 
 **CL request-processing (distilled from the Electra/Pectra consensus-spec):** `process_withdrawal_request`, `process_consolidation_request` / `is_valid_switch_to_compounding_request` / `switch_to_compounding_validator` / `queue_excess_active_balance`, `process_deposit_request` / `process_pending_deposits`, `initiate_validator_exit` / `compute_exit_epoch_and_update_churn` / `compute_consolidation_epoch_and_update_churn`, `process_voluntary_exit`, `get_pending_balance_to_withdraw`, `is_eligible_for_partial_withdrawals` / `get_pending_partial_withdrawals`, `has_execution_withdrawal_credential` / `has_compounding_withdrawal_credential` / `has_eth1_withdrawal_credential`.

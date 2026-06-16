@@ -96,9 +96,11 @@ TriggerableWithdrawalsGateway
 External: AccountingOracle, ValidatorExitDelayVerifier, TriggerableWithdrawalsGateway, each IStakingModule.
 ```
 
+`exitType` classifies why the exit was triggered and is forwarded unchanged to `module.onValidatorExitTriggered`; each module interprets it per its own implementation (module-side handling out of scope — CSM seam).
+
 Phase ordering matters: phase-1 router totals drive *allocation and fee weight* immediately, but the module learns per-operator counts only in phase 2, then reconciles in `onExitedAndStuckValidatorsCountsUpdated`. If phase 2 spills into the next frame, the router emits `StakingModuleExitedValidatorsIncompleteReporting` and the module carries stale per-operator data for a frame — each module must tolerate this. `unsafeSetExitedValidatorsCount(...)` (`UNSAFE_SET_EXITED_VALIDATORS_ROLE`) is the DAO escape hatch: bypasses the monotonic/non-decrease invariant against expected current values, flagged unsafe in source.
 
-ERRATA — stuck validators DEPRECATED: there is **no** `reportStakingModuleStuckValidatorsCountByNodeOperator` and no stuck path through the router. `AccountingOracle` extra-data `itemType=1` (legacy `EXTRA_DATA_TYPE_STUCK_VALIDATORS`) now reverts `DeprecatedExtraDataType`. In NOR, `getNodeOperatorSummary` hardcodes `stuckValidatorsCount = 0` (and `refundedValidatorsCount = 0`, `stuckPenaltyEndTimestamp = 0`); `getStuckPenaltyDelay()` returns 0. The exit-delay penalty model replaces the old stuck/refunded counters.
+**Stuck validators (deprecated):** there is **no** `reportStakingModuleStuckValidatorsCountByNodeOperator` and no stuck path through the router. `AccountingOracle` extra-data `itemType=1` (legacy `EXTRA_DATA_TYPE_STUCK_VALIDATORS`) now reverts `DeprecatedExtraDataType`. In NOR, `getNodeOperatorSummary` hardcodes `stuckValidatorsCount = 0` (and `refundedValidatorsCount = 0`, `stuckPenaltyEndTimestamp = 0`); `getStuckPenaltyDelay()` returns 0. The exit-delay penalty model replaces the old stuck/refunded counters.
 
 ### 5. NOR operator and key lifecycle, reward distribution
 
@@ -133,6 +135,7 @@ Reward state machine: `onRewardsMinted` → `TransferredToModule`; `onExitedAndS
 - **StakingModule struct (packed).** `id (uint24)`, `stakingModuleFee/treasuryFee/stakeShareLimit/priorityExitShareThreshold (uint16)`, `status (uint8)`, `maxDepositsPerBlock/minDepositBlockDistance/lastDepositAt (uint64)`, plus `stakingModuleAddress`, `name`, `lastDepositBlock`, `exitedValidatorsCount`. The router's `exitedValidatorsCount` is the phase-1 aggregate and can legitimately differ from the module summary mid-frame.
 - **Shared (moduleId, nodeOperatorId) namespace.** One id space spans NOR (id=1), Simple DVT (id=2), CSM (id=3+). Core code that hardcodes `id == 1` or assumes NOR semantics breaks for other modules.
 - **NOR is Aragon ACL, not OZ.** Auth via `_auth(role)`/`canPerform`/`authP` (by operator id), distinct from `StakingRouter`'s OZ `AccessControlEnumerable`. `MAX_NODE_OPERATORS_COUNT = 200` bounds storage iteration. `reportValidatorExitDelay` dedupes by `keccak256(pubkey)` (idempotent), requires `eligibleToExitInSec ≥ exitDeadlineThreshold` and the proof slot within the cutoff window.
+- **Contract versions (mainnet).** `NodeOperatorsRegistry` is currently at v4 and `StakingRouter` at v3; both `finalizeUpgrade_vN` upgrades have already executed, so the exit-reporting surface described above is the live v4/v3 behavior.
 
 ## External interactions
 
@@ -159,6 +162,8 @@ NodeOperatorsRegistry
 
 CSM is the third major module (`lidofinance/community-staking-module`); only the `IStakingModule` interface is in-repo. `StakingRouter` drives it exclusively through that interface — `obtainDepositData`, `onRewardsMinted`, `onExitedAndStuckValidatorsCountsUpdated`, `onValidatorExitTriggered`, `reportValidatorExitDelay`, `decreaseVettedSigningKeysCount`, plus the summary views. Seam invariants to preserve under any change to the router, the extra-data decoder ([`03`](./03-oracle-accounting.md#external-interactions)), VEBO ([`08`](./08-exits.md#external-interactions)) / TWG ([`04`](./04-withdrawals.md#external-interactions)): call signatures, return shapes, event order; idempotent `reportValidatorExitDelay`; the shared id namespace. CSM holds operator bond as stETH **shares**, so a change to share-rate semantics or `Burner` ordering ([`03`](./03-oracle-accounting.md#internal-mechanics)) can mis-value bond. CSM internals (bond curve, strikes/performance oracle, `CSEjector`→TWG forced exits, `CSVerifier` proofs, V2 gates) are out of scope.
 
+> **Invariants:** see [`core-invariants.md` §4](./core-invariants.md#4-staking-router-and-allocations) — supplementary, not the full set; derive others from source.
+
 ## Key constants
 
 | Constant | Value | Purpose |
@@ -170,7 +175,7 @@ CSM is the third major module (`lidofinance/community-staking-module`); only the
 | `MAX_STAKING_MODULE_NAME_LENGTH` | 31 | Module-name byte cap |
 | `MAX_NODE_OPERATORS_COUNT` | 200 | NOR per-module operator cap (bounds storage iteration) |
 | `MAX_UINT256` | 2**256 − 1 | `MinFirstAllocationStrategy` no-candidate sentinel |
-| `MAX_STUCK_PENALTY_DELAY` | 365 days | Legacy NOR constant; stuck-penalty logic removed (see errata) |
+| `MAX_STUCK_PENALTY_DELAY` | 365 days | Legacy NOR constant; stuck-penalty logic removed |
 
 ## Source references
 
@@ -179,4 +184,4 @@ CSM is the third major module (`lidofinance/community-staking-module`); only the
 - `0.4.24/nos/NodeOperatorsRegistry.sol` — Aragon-ACL Curated/Simple-DVT; operator & key lifecycle, reward state machine + `_distributeRewards`, `getNodeOperatorSummary` (stuck hardcoded 0), `reportValidatorExitDelay`/`setExitDeadlineThreshold`.
 - `common/lib/MinFirstAllocationStrategy.sol` — `allocate`/`allocateToBestCandidate`. Boundary: `0.8.9/BeaconChainDepositor.sol`, `common/interfaces/IStakingModule.sol`.
 
-**Official docs (context/docs/...):** `contracts/staking-router.md`, `contracts/node-operators-registry.md`, `staking-modules/csm/` (CSM impl in `lidofinance/community-staking-module`).
+**Official docs (docs/docs/):** `contracts/staking-router.md`, `contracts/node-operators-registry.md`, `staking-modules/csm/` (CSM impl in `lidofinance/community-staking-module`).

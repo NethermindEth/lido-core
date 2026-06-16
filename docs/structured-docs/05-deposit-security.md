@@ -66,7 +66,7 @@ guardian observes a malicious predeposit (single guardian, NO quorum)
 External: off-chain guardian committee; signed pause message relayable by any address.
 ```
 
-The defining property: a **single** guardian pauses (no quorum), so N−1 colluding guardians cannot lock the honest one out of blocking a bad deposit. The asymmetry — `quorum` signatures to ALLOW, one to DENY — is the primary defense against guardian collusion. There is no on-chain way to challenge a pause; a false pause costs only reputation. Resume is owner-only (see Internal mechanics — errata #8: the function is `unpauseDeposits`, not `resumeDeposits`).
+The defining property: a **single** guardian pauses (no quorum), so N−1 colluding guardians cannot lock the honest one out of blocking a bad deposit. The asymmetry — `quorum` signatures to ALLOW, one to DENY — is the primary defense against guardian collusion. There is no on-chain way to challenge a pause; a false pause costs only reputation. Resume is owner-only.
 
 ### 3. Unvet (`unvetSigningKeys`) — deny-by-one, additive to pause
 
@@ -92,7 +92,7 @@ The `StakingRouter` target only **decreases** the cap — there is no path here 
 
 - **Storage:** `isDepositsPaused` (bool), `lastDepositBlock`, `pauseIntentValidityPeriodBlocks`, `maxOperatorsPerUnvetting`, `owner`, `quorum`, `guardians[]`, `guardianIndicesOneBased` (one-based map; index 0 = absent, getter returns int256 `-1`). DSM stores no per-block deposit count — the cap is read live from `StakingRouter` at deposit time.
 - **`blockhash` window:** `blockhash(blockNumber)` returns 0 for future or >256-block-old blocks, so both forward-dated and stale ATTEST/UNVET intents revert on the `blockHash` check.
-- **Owner knobs (`onlyOwner`):** `setOwner` (reverts `ZeroAddress` — owner cannot be renounced to 0), `setPauseIntentValidityPeriodBlocks` / `setMaxOperatorsPerUnvetting` (revert `ZeroParameter` on 0), `setGuardianQuorum`, `addGuardian` / `addGuardians` / `removeGuardian` (each re-sets quorum; remove is swap-pop), and `unpauseDeposits`. Errata #8: the resume function is `unpauseDeposits()` — it reverts `DepositsNotPaused` if not paused; `resumeDeposits()` does not exist.
+- **Owner knobs (`onlyOwner`):** `setOwner` (reverts `ZeroAddress` — owner cannot be renounced to 0), `setPauseIntentValidityPeriodBlocks` / `setMaxOperatorsPerUnvetting` (revert `ZeroParameter` on 0), `setGuardianQuorum`, `addGuardian` / `addGuardians` / `removeGuardian` (each re-sets quorum; remove is swap-pop), and `unpauseDeposits`. The resume function is `unpauseDeposits()` — it reverts `DepositsNotPaused` if not paused; `resumeDeposits()` does not exist.
 - **Quorum edge cases:** `setGuardianQuorum` may set `quorum` ABOVE `guardians.length` (explicitly permitted) — a soft kill-switch that blocks deposits without touching the pause flag. It may also shrink quorum, unilaterally loosening the gate. `quorum == 0` always fails flow 1 step 3.
 
 ## External interactions
@@ -137,7 +137,7 @@ DSM has no role on `Lido` and no role on `StakingRouter` except `STAKING_MODULE_
 - `0.8.9/BeaconChainDepositor.sol` — `_makeBeaconChainDeposits32ETH`, `_computeDepositDataRoot`, `DEPOSIT_SIZE`, `DEPOSIT_SIZE_IN_GWEI_LE64` (reviewed via `StakingRouter`; see [`02`](./02-staking-router-modules.md)).
 - `0.8.9/StakingRouter.sol` — `STAKING_MODULE_UNVETTING_ROLE` and `decreaseStakingModuleVettedKeysCountByNodeOperator` (UNVET target).
 
-**Official docs (context/docs/...):**
+**Official docs (docs/docs/):**
 - `contracts/deposit-security-module.md` — guardian quorum (4/6), message types, view/admin methods.
 - `guides/deposit-security-manual.md` — front-running vuln (LIP-5), Deposit Security Committee, threat model.
 - `contracts/staking-router.md` — unvet target and deposit dispatch.

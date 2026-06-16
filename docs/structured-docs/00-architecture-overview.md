@@ -36,7 +36,7 @@ Lido is the largest Ethereum liquid-staking protocol. Users deposit ETH for **st
 R  reference      SSZ / GIndex proofs ; EIP-7002 / 7251 / 4788 distilled specs
 ```
 
-## The four critical flows
+## The critical flows
 
 ### 1. Submit and deposit (user → validator)
 
@@ -72,7 +72,7 @@ AccountingOracle -> Accounting.handleOracleReport(ReportValues)
         -> WithdrawalQueue.finalize{value}(...)   // lock ETH for batch @ checkpoint rate
    7. IF sharesToMintAsFees>0: Lido.mintShares(address(this)=Accounting) -> _distributeFee (transferShares -> modules + treasury) -> StakingRouter.reportRewardsMinted  // FEES LAST
    8. IF postTokenRebaseReceiver != 0: _notifyRebaseObserver(...) -> handlePostTokenRebase(...)  // EXT: optional rebase hook
-   9. Lido.emitTokenRebase(...)   // post-rebase event                      
+   9. Lido.emitTokenRebase(...)   // post-rebase event
 External: HashConsensus, AccountingOracle, ELRewardsVault, WithdrawalVault, EIP-4788 (proofs, separate path).
 ```
 **Why the ordering matters.** WQ-finalized shares are *queued* by `Burner.requestBurnShares` (step 2) but only *committed in aggregate* by `Burner.commitSharesToBurn(total)` (step 5), which drives `Lido.burnShares` — do not conflate the two. Burns commit **before** fees mint, so the burn happens at the pre-mint rate; **fees mint LAST** (step 7), settling against the already-rebased rate and never diluting the burn. Bad debt from insolvent V3 vaults is internalized (step 4) into the core share base before the burn/finalize, socializing the loss across all stETH holders. The accounting share rate is **internal ether / internal shares** (external vault ether/shares excluded; internal-ether composition in [`01`](./01-core-staking.md#internal-mechanics)). A **second, independent oracle** (separate `HashConsensus` + `ValidatorsExitBusOracle`/VEBO on a shorter frame, separate committee) publishes validator-exit requests (→ [`08`](./08-exits.md#core-flows)); it does not touch this accounting path. Detail: [`03`](./03-oracle-accounting.md).
@@ -101,9 +101,24 @@ LazyOracle -> VaultHub.applyVaultReport               // NAV via Merkle root + q
 ```
 A V3 stVault is a separate non-custodial contract whose withdrawal credentials the staker owns; minting is bounded by the `OperatorGrid` tier (reserve ratio, share limit, fees), and below the health threshold the vault is force-rebalanced or its shortfall socialized as bad debt (internalized in flow 2). Vault NAV/fees flow on a separate `LazyOracle` path, **not** the accounting report; force-exit uses `TriggerableWithdrawals` directly, not the gateway. Detail: [`06`](./06-vaults.md).
 
+### 5. Triggerable validator exit (EIP-7002 forced exit)
+
+```text
+caller (permissionless; gated by a previously delivered exit-request hash, not a role)
+ -> ValidatorsExitBus.triggerExits(exitsData, indexes, refundRecipient)
+ -> TriggerableWithdrawalsGateway.triggerFullWithdrawals(validatorsData, refundRecipient, EXIT_TYPE)
+      // onlyRole ADD_FULL_WITHDRAWAL_REQUEST_ROLE (held by VEBO, reached via VEB); rate-limited via ExitLimitUtils; fee checked
+ -> WithdrawalVault.addWithdrawalRequests{value}(pubkeys, amounts=0)   // per-validator EIP-7002 predeploy call (amount 0 = full exit)
+ -> StakingRouter.onValidatorExitTriggered(...)      // notify modules; exitType = exit reason
+ -> refund surplus msg.value to refundRecipient
+```
+How the protocol forces validators to exit on its own schedule (e.g. unresponsive operators, slashed validators, rebalancing). Permissionless to call but gated by a previously delivered exit-request hash, and rate-limited; the gateway is the only authorized caller of the vault's EIP-7002 path. The exit-request publication (VEBO) and the permissionless exit-delay proof (VEDV) are separate paths in the same domain. Detail: VEB/VEBO/VEDV [`08`](./08-exits.md#core-flows); gateway + predeploy + fee/refund [`04`](./04-withdrawals.md#core-flows); EIP-7002 spec [`R`](./R-consensus-proof-reference.md#distilled-external-specs); module notification [`02`](./02-staking-router-modules.md#core-flows).
+
 ## Governance
 
 Three layers. (1) **Aragon DAO** (LDO) — root authority; on-chain votes set roles and upgrade contracts. The 0.4.24 contracts (`Lido`, `StETH`, `NodeOperatorsRegistry`) use the Aragon ACL with `bytes32` role constants; the 0.8.x contracts use OZ `AccessControl`, where `DEFAULT_ADMIN_ROLE` (and OZ-core admin) resolves to the Aragon `AGENT`, governed by Dual Governance. (2) **Easy Track** — DAO-pre-approved motion framework for bounded recurring ops; out of core scope except role assignments. (3) **Dual Governance** (cross-repo) — a timelock + escrow gate wrapping Aragon votes affecting the core; stakers lock stETH/wstETH/unstETH into escrow to enter Veto Signaling, and at the second-seal threshold the protocol enters Rage Quit, freezing upgrades until lockers exit. Full role matrix: [`07`](./07-governance-permissions.md).
+
+Upgrade initializers gate on the stored version counter, not a role (no `onlyRole`): a fresh-deploy `initialize` runs once (guarded by version `0` via `_initializeContractVersionTo`, or Aragon `onlyInit`); an upgrade `finalizeUpgrade_vN` requires the prior version `N-1` (`_checkContractVersion(N-1)`, or the equivalent +1 check via `_updateContractVersion` in the 0.8.9 contracts) before advancing the counter to N — so each is one-shot and a re-call reverts. `Burner` uses a one-shot `isMigrationAllowed` flag for the same effect. Each contract's current mainnet version is noted in its module.
 
 ## Emergency response
 
@@ -115,4 +130,4 @@ Three layers. (1) **Aragon DAO** (LDO) — root authority; on-chain votes set ro
 
 **Live source:** `0.8.9/Accounting.sol` (`_applyOracleReportContext` report ordering), `0.4.24/Lido.sol` (`submit`/`_getInternalEther`/`_getShareRate*`/`collectRewardsAndProcessWithdrawals`), `0.8.9/Burner.sol` (`requestBurnShares`/`commitSharesToBurn`), `0.8.9/LidoLocator.sol`.
 
-Official docs: `docs/introduction.mdx`, `docs/lido-v3-whitepaper.mdx`, `docs/contracts/lido-locator.md`, `docs/guides/dg-guide.md`.
+Official docs: `docs/docs/introduction.mdx`, `docs/docs/lido-v3-whitepaper.mdx`, `docs/docs/contracts/lido-locator.md`, `docs/docs/guides/dg-guide.md`.

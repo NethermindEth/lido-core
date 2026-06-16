@@ -9,7 +9,7 @@ ssot_for: [report-execution-detail, damage-bound, share-burn-timing, bad-debt-in
 # 03 — Oracle Accounting & Report Execution
 
 > The report-execution *narrative* (where the rebase comes from, who triggers it) is the SSOT of
-> [`00`](./00-architecture-overview.md#the-four-critical-flows). This doc owns the **execution detail**:
+> [`00`](./00-architecture-overview.md#the-critical-flows). This doc owns the **execution detail**:
 > `handleOracleReport` step ordering, the on-chain damage bound, share-burn timing, and the bad-debt
 > internalize seam to [`06`](./06-vaults.md). WQ finalization continues in
 > [`04`](./04-withdrawals.md#core-flows).
@@ -29,7 +29,7 @@ ssot_for: [report-execution-detail, damage-bound, share-burn-timing, bad-debt-in
 
 ### 1. Report ingest seam (gating only — narrative in 00)
 
-Gating **seam** only (committee / quorum / frame narrative in [`00`](./00-architecture-overview.md#the-four-critical-flows)); one member submits `ReportData` to `AccountingOracle.submitReportData` and the on-chain checks that matter are:
+Gating **seam** only (committee / quorum / frame narrative in [`00`](./00-architecture-overview.md#the-critical-flows)); one member submits `ReportData` to `AccountingOracle.submitReportData` and the on-chain checks that matter are:
 
 ```text
 HashConsensus.submitReport(refSlot, hash, consensusVersion)  // EXT: off-chain oracle daemon, quorum members
@@ -77,7 +77,7 @@ C. _applyOracleReportContext (mutations, IN THIS EXACT ORDER)
 External: AccountingOracle (caller), VaultHub, Lido, StakingRouter, Burner, WithdrawalQueue, postTokenRebaseReceiver.
 ```
 
-**Why ordering matters** (full narrative: [`00`](./00-architecture-overview.md#the-four-critical-flows) flow 2). The C-phase specifics this doc owns: the source comment makes minting the "final action that changes share rate", so **fees mint last** (C.7) against the post-rebase rate; `processClStateUpdate` (C.3) runs before the burns so beacon state is set before the rate moves; the WQ burn is **queued** in C.2 (`requestBurnShares`) but **committed as the aggregate** in C.5 (`commitSharesToBurn(totalSharesToBurn)` = cover/non-cover **plus** WQ shares); and `ReportValues` carries **no vault NAV/fee fields** — V3 vault reporting is the separate `LazyOracle.updateReportData` path ([`06`](./06-vaults.md#core-flows)), the only vault touch here being bad-debt internalize (C.4).
+**Why ordering matters** (full narrative: [`00`](./00-architecture-overview.md#the-critical-flows) flow 2). The C-phase specifics this doc owns: the source comment makes minting the "final action that changes share rate", so **fees mint last** (C.7) against the post-rebase rate; `processClStateUpdate` (C.3) runs before the burns so beacon state is set before the rate moves; the WQ burn is **queued** in C.2 (`requestBurnShares`) but **committed as the aggregate** in C.5 (`commitSharesToBurn(totalSharesToBurn)` = cover/non-cover **plus** WQ shares); and `ReportValues` carries **no vault NAV/fee fields** — V3 vault reporting is the separate `LazyOracle.updateReportData` path ([`06`](./06-vaults.md#core-flows)), the only vault touch here being bad-debt internalize (C.4).
 
 ### 3. Sanity bound — checkAccountingOracleReport (LOAD-BEARING)
 
@@ -126,7 +126,7 @@ C.4 (if > 0):
 
 In `_simulateOracleReport` the bad debt is folded as `postInternalShares += badDebt` and `postExternalShares = externalShares − badDebt` ("can't underflow by design"). Net: external shares shrink, internal shares grow by the same count, so internal-holder share rate **drops** — the vault loss is borne by stakers. The two calls must stay paired (VaultHub debit + Lido move) or the books desync — the socialize-vs-internalize double-settle surface. How `VaultHub` accrues bad debt: [`06`](./06-vaults.md#core-flows). **Sim/exec divergence:** the live `badDebtToInternalize()` (permissionless simulate twin) and the snapshotted `…ForLastRefSlot()` (on-chain) can differ — the daemon must simulate against the current ref-slot view.
 
-### 5. Burner — share-burn queue (RESTORED)
+### 5. Burner — share-burn queue
 
 Burns *decrease* `totalShares` to effect a positive rebase. Requests sit pending (held as stETH on the Burner)
 until the next report commits them. Two role-gated entry families plus the cover/non-cover split:
@@ -146,7 +146,7 @@ External: Lido.transferSharesFrom (pull), Lido.burnShares (commit).
 
 `commitSharesToBurn(total)` reverts `BurnAmountExceedsActual` if `total > cover+nonCover requested`; drains cover-first, updates lifetime `totalCover/NonCoverSharesBurnt`, then `Lido.burnShares(total)` and asserts the per-bucket sum equals `total`. **Cover vs non-cover** is informational only (integrators split a rebase into rewards vs insurance via `getCoverSharesBurnt`/`getNonCoverSharesBurnt`); supply impact identical. `requestBurnShares` holders are **`ACCOUNTING` + `CSM_ACCOUNTING` only** (see [`07`](./07-governance-permissions.md#contracts)).
 
-### 6. Burner — excess-stETH recovery and migrate (RESTORED)
+### 6. Burner — excess-stETH recovery and migrate
 
 stETH sent to the Burner *outside* the request path is not auto-burnt — it sits as `getExcessStETH()` (= `sharesOf(Burner) − coverRequested − nonCoverRequested`, via `_getExcessStETHShares`). Recovery is **permissionless by design** and hard-wired to treasury, so accidental sends are never burned irrecoverably:
 
@@ -158,6 +158,8 @@ receive() → revert DirectETHTransfer   // Burner rejects raw ETH
 ```
 
 Recovery cannot touch shares marked for burning (requested buckets subtracted) and only sends to `LOCATOR.treasury()`. **V3 migrate:** `migrate(oldBurner)` is `msg.sender == LIDO` only (`OnlyLidoCanMigrate`), gated on `isMigrationAllowed` (set at `initialize`), flips that flag false so it runs once; copies `totalCover/NonCoverSharesBurnt` and the requested buckets from the old Burner. `initialize(admin, isMigrationAllowed)` is one-time, grants `DEFAULT_ADMIN_ROLE`.
+
+**Deployment state (mainnet):** the live `Burner` is at v1 and `migrate(oldBurner)` has already executed, so `isMigrationAllowed` is now `false` and a second `migrate` reverts.
 
 ## Internal mechanics
 
@@ -198,6 +200,8 @@ OracleReportSanityChecker
   → StakingRouter.getStakingModule* / Burner.getSharesRequestedToBurn / WithdrawalQueue.getWithdrawalStatus (reads)
 ```
 
+> **Invariants:** see [`core-invariants.md` §2](./core-invariants.md#2-accounting-burn-and-report-execution) — supplementary, not the full set; derive others from source.
+
 ## Key constants
 
 | Constant | Value | Purpose |
@@ -222,4 +226,4 @@ OracleReportSanityChecker
 - `contracts/0.8.9/Burner.sol` — `REQUEST_BURN_SHARES_ROLE`/`REQUEST_BURN_MY_STETH_ROLE`, `requestBurnShares`/`requestBurnSharesForCover`/`requestBurnMy*`, `commitSharesToBurn` (accounting-gated), `getExcessStETH`/`recoverExcessStETH`/`recoverERC20`/`recoverERC721`, `migrate` (Lido-only), `initialize`.
 - `contracts/0.8.9/sanity_checks/OracleReportSanityChecker.sol` — `LimitsList`, `smoothenTokenRebase`, `checkAccountingOracleReport` (gated `CalledNotFromAccounting`), `_checkCLBalanceDecrease`/`_askSecondOpinion` (LIP-23), `checkSimulatedShareRate`/`checkWithdrawalQueueOracleReport`/`checkExitedValidatorsRatePerDay`/`checkExtraData*`/`checkExitBusOracleReport`, `setOracleReportLimits`.
 
-**Official docs (`context/docs/...`):** `contracts/burner.md`, `contracts/oracle-report-sanity-checker.md`, `contracts/accounting-oracle.md`, `contracts/lido.md`.
+**Official docs (`docs/docs/`):** `contracts/burner.md`, `contracts/oracle-report-sanity-checker.md`, `contracts/accounting-oracle.md`, `contracts/lido.md`.
