@@ -43,7 +43,7 @@ The single transaction (initiated by `AccountingOracle.submitReportData`) that r
 
 ### Contracts involved
 - `AccountingOracle.sol`: entry, consensus binding
-- `Accounting.sol` : orchestrator (10-step body of `_applyOracleReportContext`)
+- `Accounting.sol` : orchestrator (9-step body of `_applyOracleReportContext`)
 - `OracleReportSanityChecker.sol` : bounds (`smoothenTokenRebase`, simulated-rate check, CL-decrease check)
 - `Lido.sol` / `StETH.sol` : share / ether state writes
 - `Burner.sol` : cover / non-cover burn commit
@@ -103,8 +103,8 @@ A permissioned caller (typically `ValidatorsExitBus` or DAO ops) forces specific
 1. Caller invokes `TriggerableWithdrawalsGateway.triggerFullWithdrawals(validators, refundRecipient, exitType)`.
 2. Gateway consumes rate-limit budget (`ExitLimitUtils`), checks fee, forwards to `WithdrawalVault.addWithdrawalRequests`.
 3. WithdrawalVault calls the EIP-7002 precompile per validator (sending the per-request fee).
-4. Excess `msg.value` is refunded to `refundRecipient`.
-5. Gateway notifies StakingRouter via `onValidatorExitTriggered` so modules track exit reasons.
+4. Gateway notifies StakingRouter via `onValidatorExitTriggered` so modules track exit reasons.
+5. Excess `msg.value` is refunded to `refundRecipient`.
 
 ### Contracts touched
 - `TriggerableWithdrawalsGateway.sol`: entry, rate limit, refund
