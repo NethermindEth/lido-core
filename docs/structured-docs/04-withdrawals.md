@@ -112,6 +112,8 @@ struct WithdrawalRequest {        // WithdrawalQueueBase
 
 **ExitLimitUtils sliding window.** Packed `ExitRequestLimitData` of five `uint32`s: `maxExitRequestsLimit`, `prevExitRequestsLimit`, `prevTimestamp`, `frameDurationInSec`, `exitsPerFrame`. `calculateCurrentExitLimit(now)` restores `prevExitRequestsLimit + framesPassed * exitsPerFrame` since `prevTimestamp`, capped at `max`; returns `prev` unchanged inside a frame or when `exitsPerFrame==0`. `updatePrevExitLimit` advances `prevTimestamp` only by whole frames (`passedTime -= passedTime % frameDuration`) so sub-frame time is not lost. `isExitLimitSet()` is `max != 0`; when unset, TWG/VEB treat the limit as `type(uint256).max` (no throttle). `setExitLimits` carries forward `exitsUsed = max - currentLimit`. Reverts: `TooLargeMaxExitRequestsLimit`/`TooLargeFrameDuration` (uint32), `TooLargeExitsPerFrame` (> max), `ZeroFrameDuration`. TWG and VEB each hold their own `ExitRequestLimitData` in a distinct storage slot, set by distinct roles (`TW_EXIT_LIMIT_MANAGER_ROLE` vs `EXIT_REQUEST_LIMIT_MANAGER_ROLE`); the two budgets are independent — consuming one never affects the other.
 
+**Contract versions (mainnet).** `WithdrawalQueueERC721` is currently at v1 (`initialize` executed) and `WithdrawalVault` at v2 (`finalizeUpgrade_v2` executed). The `TriggerableWithdrawalsGateway` `VERSION = 1` constant in `## Key constants` is a plain marker, not this versioning.
+
 ## External interactions
 ```text
 WithdrawalQueueERC721 / WithdrawalQueue / Base

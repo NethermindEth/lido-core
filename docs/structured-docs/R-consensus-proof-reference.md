@@ -140,7 +140,7 @@ still-buffered block) is the EIP-4788 root; everything else hangs off it by SSZ 
 
 ## Distilled external specs
 
-Lido-relevant facts only (distilled, not transcribed). Predeploy addresses verified against source constants below.
+Lido-relevant facts only.
 
 - **EIP-7002 (triggerable withdrawals/exits).** Request = **56 bytes** (`WITHDRAWAL_REQUEST_CALLDATA_LENGTH`) =
   48-byte pubkey ++ big-endian `uint64` amount (`WITHDRAWAL_AMOUNT_LENGTH = 8`); `amount = 0` ⇒ full exit (no
@@ -151,7 +151,7 @@ Lido-relevant facts only (distilled, not transcribed). Predeploy addresses verif
   caller (`msg.sender`) as the withdrawal-request `source_address`; `process_withdrawal_request` then requires
   `has_execution_withdrawal_credential` (`0x01` or `0x02`) and `withdrawal_credentials[12:] == source_address`, so the
   calling contract must hold the validator's execution-withdrawal credential — for a V3 `StakingVault`, its `0x02` WC.
-  *(One-line refs — never transcribed: in-state queue layout, dequeue/excess-update/count-reset helpers, synthetic
+  *(Not covered here: in-state queue layout, dequeue/excess-update/count-reset helpers, synthetic
   deployment blob, 30M system-call gas, EIP-7685 wrapping.)*
 - **EIP-7251 (consolidation).** Predeploy `…007251` (`CONSOLIDATION_REQUEST_PREDEPLOY_ADDRESS`). Calldata = **96
   bytes** = source pubkey ‖ target pubkey (`2 × 48`). Merges a source validator into a `0x02` (compounding) target;
@@ -173,10 +173,9 @@ Lido-relevant facts only (distilled, not transcribed). Predeploy addresses verif
   the activation queue and is churn-limited (`get_activation_exit_churn_limit`), so PDG's WC proof can predate
   activation.
 
-*(SUMMARIZE-not-copy, one-line each: Pectra committee/attestation EIP-7549, sync-committee, blob EIP-7691,
-proposer-index, `process_slashings`, full `BeaconState`/`BeaconBlockBody` dumps, engine APIs — all out of in-repo
-scope. The CL request-processing model — `process_withdrawal_request` / `process_consolidation_request` /
-`process_deposit_request` and the churn/queue/sweep mechanics — is distilled below in
+*(Out of in-repo scope: Pectra committee/attestation EIP-7549, sync-committee, blob EIP-7691,
+proposer-index, `process_slashings`, full `BeaconState`/`BeaconBlockBody` dumps, engine APIs. The CL request-processing model — `process_withdrawal_request` / `process_consolidation_request` /
+`process_deposit_request` and the churn/queue/sweep mechanics — is detailed below in
 [Consensus-layer request processing](#consensus-layer-request-processing-the-seam).)*
 
 ## Consensus-layer request processing (the seam)

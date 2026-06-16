@@ -118,6 +118,8 @@ How the protocol forces validators to exit on its own schedule (e.g. unresponsiv
 
 Three layers. (1) **Aragon DAO** (LDO) — root authority; on-chain votes set roles and upgrade contracts. The 0.4.24 contracts (`Lido`, `StETH`, `NodeOperatorsRegistry`) use the Aragon ACL with `bytes32` role constants; the 0.8.x contracts use OZ `AccessControl`, where `DEFAULT_ADMIN_ROLE` (and OZ-core admin) resolves to the Aragon `AGENT`, governed by Dual Governance. (2) **Easy Track** — DAO-pre-approved motion framework for bounded recurring ops; out of core scope except role assignments. (3) **Dual Governance** (cross-repo) — a timelock + escrow gate wrapping Aragon votes affecting the core; stakers lock stETH/wstETH/unstETH into escrow to enter Veto Signaling, and at the second-seal threshold the protocol enters Rage Quit, freezing upgrades until lockers exit. Full role matrix: [`07`](./07-governance-permissions.md).
 
+Upgrade initializers gate on the stored version counter, not a role (no `onlyRole`): a fresh-deploy `initialize` runs once (guarded by version `0` via `_initializeContractVersionTo`, or Aragon `onlyInit`); an upgrade `finalizeUpgrade_vN` requires the prior version `N-1` (`_checkContractVersion(N-1)`, or the equivalent +1 check via `_updateContractVersion` in the 0.8.9 contracts) before advancing the counter to N — so each is one-shot and a re-call reverts. `Burner` uses a one-shot `isMigrationAllowed` flag for the same effect. Each contract's current mainnet version is noted in its module.
+
 ## Emergency response
 
 - **`GateSeal`** — single-use one-of-N committee that pauses `WithdrawalQueue`/`ValidatorsExitBusOracle` for a bounded window (cap set at construction, ≤ 14 days), then expires. Circuit breaker for mid-frame bugs.
