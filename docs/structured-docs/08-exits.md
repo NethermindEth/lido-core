@@ -84,7 +84,7 @@ ValidatorsExitBus / ValidatorsExitBusOracle
   ← submitReportData [SUBMIT_DATA_ROLE | consensus member] ; submitExitRequestsHash [SUBMIT_REPORT_HASH_ROLE]
   ← submitExitRequestsData / triggerExits [permissionless]
   → OracleReportSanityChecker.checkExitBusOracleReport         → 03 (damage bound)
-  → emit ValidatorExitRequest (off-chain operators + VEDV) ; → TWG.triggerFullWithdrawals   → 04
+  → emit ValidatorExitRequest (advisory — off-chain operators) ; → TWG.triggerFullWithdrawals   → 04
 
 ValidatorExitDelayVerifier
   ← anyone (permissionless)

@@ -3,7 +3,7 @@ doc: "01"
 title: Core Staking
 contracts: [Lido, StETH, StakeLimitUtils]
 prereqs: []
-see_also: ["00","03","07"]
+see_also: ["00","03","05","07"]
 ssot_for: [share-rate, external-shares, stake-limit, totalPooledEther]
 ---
 # 01 — Core Staking
@@ -48,9 +48,10 @@ DSM → Lido.deposit(maxDepositsCount, moduleId, depositCalldata)
   → require(canDeposit())                                         // !bunkerMode && !isStopped — CAN_NOT_DEPOSIT
   → count = min(maxDepositsCount, StakingRouter.getStakingModuleMaxDepositsCount(moduleId, getDepositableEther()))
   → // CEI: update state BEFORE the external call to block reentrancy
-  → _setBufferedEtherAndDepositedValidators(buffered - count*32, depositedValidators + count)
-  → emit Unbuffered; emit DepositedValidatorsChanged
-  → StakingRouter.deposit{value: count*32}(count, moduleId, calldata)   // EXT: must place ALL ether or revert whole tx
+  → if count > 0:   // skipped entirely when count == 0
+        _setBufferedEtherAndDepositedValidators(buffered - count*32, depositedValidators + count)
+        emit Unbuffered; emit DepositedValidatorsChanged
+  → StakingRouter.deposit{value: count*32}(count, moduleId, calldata)   // EXT (unconditional; 0 value when count==0): must place ALL ether or revert whole tx
 External: StakingRouter (→ staking module → beacon deposit contract).
 ```
 
@@ -105,7 +106,7 @@ Burner.commitSharesToBurn → Lido.burnShares(shares)      // _auth(_burner); bu
 External: Accounting, EL/withdrawal vaults, WithdrawalQueue, Burner.
 ```
 
-`mintShares`/`burnShares` emit `Transfer(0,…)` / `SharesBurnt` (Lido historically never emits `Transfer` to/from zero for these — it uses `SharesBurnt`). The WQ-finalize and burn-chain granularity is owned by [`04`](./04-withdrawals.md#core-flows).
+`mintShares` emits `Transfer(0, recipient, …)` (via `_emitTransferAfterMintingShares`); `burnShares` emits only `SharesBurnt` (Lido historically never emits `Transfer` to zero for burns — it uses `SharesBurnt` instead). The WQ-finalize and burn-chain granularity is owned by [`04`](./04-withdrawals.md#core-flows).
 
 ### 6. External-shares seam (← VaultHub) — LOAD-BEARING
 
@@ -147,7 +148,7 @@ holder → approve / increaseAllowance / decreaseAllowance / permit         // N
 
 **StakeLimitUtils — packed single-slot accumulator.** `STAKING_STATE_POSITION` packs four fields into one 256-bit slot: `maxStakeLimit` (uint96, bits 160-255), `maxStakeLimitGrowthBlocks` (uint32, 128-159), `prevStakeLimit` (uint96, 32-127), `prevStakeBlockNumber` (uint32, 0-31). Sentinels: **paused** ⇔ `prevStakeBlockNumber == 0`; **unlimited** ⇔ `maxStakeLimit == 0` (with `prevStakeBlockNumber != 0`). `calculateCurrentStakeLimit` branches on `prevStakeLimit < maxStakeLimit`. With `change = blocksPassed * (maxStakeLimit / maxStakeLimitGrowthBlocks)`: if true, returns `min(prevStakeLimit + change, maxStakeLimit)` (refill, capped); else `max(_saturatingSub(prevStakeLimit, change), maxStakeLimit)` (drain, floored — `prevStakeLimit > maxStakeLimit` is reachable via `burnExternalShares`, decays per-block). Branchless via `_constGasMin/_constGasMax/_saturatingSub` (gas independent of block delta). Each `submit`/`mintExternalShares` calls `_decreaseStakingLimit`: reverts `STAKING_PAUSED`, reverts `STAKE_LIMIT` if `amount > currentLimit`, else writes `prevStakeLimit = currentLimit − amount` and stamps `prevStakeBlockNumber = block.number`. `burnExternalShares` does the inverse without moving ETH. The accumulator is in **wei** — **no `1e3 wei` precision constant**.
 
-**Hard caps.** `setStakingLimit` requires `maxStakeLimit <= uint96.max / 2` (Lido-level) and the library additionally requires `maxStakeLimit <= uint96.max`, `maxStakeLimit >= perBlock`, and `maxStakeLimit/perBlock <= uint32.max`. `setStakingLimit` resets `prevStakeLimit` to the new max only when staking was paused/unlimited or the new max is below the old `prevStakeLimit`.
+**Hard caps.** `setStakingLimit` requires `maxStakeLimit <= uint96.max / 2` (Lido-level) and the library additionally requires `maxStakeLimit <= uint96.max`, `maxStakeLimit >= perBlock`, and `maxStakeLimit/perBlock <= uint32.max` (only when `perBlock != 0`; `perBlock == 0` is a legal non-regenerating limit and skips the ratio check). `setStakingLimit` resets `prevStakeLimit` to the new max only when staking was paused/unlimited or the new max is below the old `prevStakeLimit`.
 
 **Recipient restriction.** `_mintShares`/`_transferShares` reject `address(0)` and `address(this)` (the stETH contract). Minting to the token itself reverts (`MINT_TO_STETH_CONTRACT`), so the external-shares and fee-mint paths inherit that guard.
 

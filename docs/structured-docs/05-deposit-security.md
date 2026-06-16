@@ -46,7 +46,7 @@ off-chain bot: poll deposit_root + module nonce, collect >= quorum guardian ECDS
      8 _verifyAttestSignatures: each sig recovers to a guardian, strictly ASCENDING by address
                                                                    // else InvalidSignature / SignaturesNotSorted
   -> maxDepositsPerBlock = StakingRouter.getStakingModuleMaxDepositsPerBlock(id)   // EXT: SR; cap read live, not stored
-  -> Lido.deposit(maxDepositsPerBlock, id, depositCalldata)        // EXT: Lido (caps by buffered ether) -> StakingRouter.deposit
+  -> Lido.deposit(maxDepositsPerBlock, id, depositCalldata)        // EXT: Lido (caps by getDepositableEther() = buffered - WQ unfinalizedStETH reserve, >=0) -> StakingRouter.deposit
   -> _setLastDepositBlock(block.number)                           // resets the GLOBAL rate-limit window
 External: beacon deposit contract (root); StakingRouter (nonce/active/cap/distance); Lido; off-chain guardian quorum.
 ```
@@ -138,6 +138,6 @@ DSM has no role on `Lido` and no role on `StakingRouter` except `STAKING_MODULE_
 - `0.8.9/StakingRouter.sol` — `STAKING_MODULE_UNVETTING_ROLE` and `decreaseStakingModuleVettedKeysCountByNodeOperator` (UNVET target).
 
 **Official docs (docs/docs/):**
-- `contracts/deposit-security-module.md` — guardian quorum (4/6), message types, view/admin methods.
+- `contracts/deposit-security-module.md` — guardian quorum, message types, view/admin methods.
 - `guides/deposit-security-manual.md` — front-running vuln (LIP-5), Deposit Security Committee, threat model.
 - `contracts/staking-router.md` — unvet target and deposit dispatch.

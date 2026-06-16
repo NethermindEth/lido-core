@@ -44,8 +44,8 @@ R  reference      SSZ / GIndex proofs ; EIP-7002 / 7251 / 4788 distilled specs
 user -> Lido.submit{value}()                     // mint shares @ rate, ETH into buffer
    off-chain depositor bot collects guardian ATTEST quorum
 DepositSecurityModule.depositBufferedEther(...)  // verifies deposit root unchanged (LIP-5 front-run guard)
- -> Lido.deposit(maxDeposits, moduleId, ...)
- -> StakingRouter.deposit()                       // allocate via MinFirstAllocationStrategy (least-used module first)
+ -> Lido.deposit(maxDeposits, moduleId, ...)       // cap count via StakingRouter.getStakingModuleMaxDepositsCount (view: MinFirstAllocationStrategy, least-allocated first)
+ -> StakingRouter.deposit()                       // deposit to the already-chosen module
  -> IStakingModule.obtainDepositData()            // keys from chosen module
  -> BeaconChainDepositor -> IDepositContract      // EXT: 32 ETH per validator key
 ```
@@ -62,7 +62,7 @@ AccountingOracle -> StakingRouter.updateExitedValidatorsCountByStakingModule(...
 AccountingOracle -> WithdrawalQueue.onOracleReport(bunkerMode, ...)   // relays bunker state ONLY, no finalize
 AccountingOracle -> Accounting.handleOracleReport(ReportValues)
   Accounting._applyOracleReportContext, IN ORDER:
-   1. _sanityChecks via OracleReportSanityChecker        // bound rebase magnitude + exited churn
+   1. _sanityChecks via OracleReportSanityChecker        // bound rebase magnitude + appeared-validator churn
    2. IF sharesToFinalizeWQ>0: Burner.requestBurnShares(withdrawalQueue, sharesToFinalizeWQ)  // QUEUE WQ shares
    3. Lido.processClStateUpdate(...)                      // commit new CL balance + validator counts
    4. IF badDebt>0: VaultHub.decreaseInternalizedBadDebt -> Lido.internalizeExternalBadDebt   // socialize vault loss
@@ -75,7 +75,7 @@ AccountingOracle -> Accounting.handleOracleReport(ReportValues)
    9. Lido.emitTokenRebase(...)   // post-rebase event
 External: HashConsensus, AccountingOracle, ELRewardsVault, WithdrawalVault, EIP-4788 (proofs, separate path).
 ```
-**Why the ordering matters.** WQ-finalized shares are *queued* by `Burner.requestBurnShares` (step 2) but only *committed in aggregate* by `Burner.commitSharesToBurn(total)` (step 5), which drives `Lido.burnShares` — do not conflate the two. Burns commit **before** fees mint, so the burn happens at the pre-mint rate; **fees mint LAST** (step 7), settling against the already-rebased rate and never diluting the burn. Bad debt from insolvent V3 vaults is internalized (step 4) into the core share base before the burn/finalize, socializing the loss across all stETH holders. The accounting share rate is **internal ether / internal shares** (external vault ether/shares excluded; internal-ether composition in [`01`](./01-core-staking.md#internal-mechanics)). A **second, independent oracle** (separate `HashConsensus` + `ValidatorsExitBusOracle`/VEBO on a shorter frame, separate committee) publishes validator-exit requests (→ [`08`](./08-exits.md#core-flows)); it does not touch this accounting path. Detail: [`03`](./03-oracle-accounting.md).
+**Why the ordering matters.** WQ-finalized shares are *queued* by `Burner.requestBurnShares` (step 2) but only *committed in aggregate* by `Burner.commitSharesToBurn(total)` (step 5), which drives `Lido.burnShares` — do not conflate the two. Burns commit **before** fees mint, so the burn happens at the pre-mint rate; **fees mint LAST** (step 7), settling against the already-rebased rate and never diluting the burn. Bad debt from insolvent V3 vaults is internalized (step 4) into the core share base before the burn/finalize, socializing the loss across all stETH holders. The accounting share rate is **internal ether / internal shares** (external vault ether/shares excluded; internal-ether composition in [`01`](./01-core-staking.md#core-flows)). A **second, independent oracle** (separate `HashConsensus` + `ValidatorsExitBusOracle`/VEBO on a shorter frame, separate committee) publishes validator-exit requests (→ [`08`](./08-exits.md#core-flows)); it does not touch this accounting path. Detail: [`03`](./03-oracle-accounting.md).
 
 ### 3. Withdrawal (stETH → ETH)
 
@@ -99,7 +99,7 @@ LazyOracle -> VaultHub.applyVaultReport               // NAV via Merkle root + q
    ... burn / rebalance / force-exit / disconnect ...
    VaultHub.burnShares -> Lido.burnExternalShares     // repay liability
 ```
-A V3 stVault is a separate non-custodial contract whose withdrawal credentials the staker owns; minting is bounded by the `OperatorGrid` tier (reserve ratio, share limit, fees), and below the health threshold the vault is force-rebalanced or its shortfall socialized as bad debt (internalized in flow 2). Vault NAV/fees flow on a separate `LazyOracle` path, **not** the accounting report; force-exit uses `TriggerableWithdrawals` directly, not the gateway. Detail: [`06`](./06-vaults.md).
+A V3 stVault is a separate non-custodial contract whose withdrawal credentials the staker owns; minting is bounded by the `OperatorGrid` tier (reserve ratio, share limit, fees), and below the health threshold the vault is force-rebalanced or its shortfall socialized as bad debt (internalized in flow 2). The vaults' Merkle root **is** delivered on the accounting report (`AccountingOracle` → `LazyOracle.updateReportData` with the report's `vaultsDataTreeRoot`); only per-vault NAV/fees are **applied lazily off the rebase path** (`LazyOracle.updateVaultData`, permissionless + Merkle-proof verified, → `VaultHub.applyVaultReport`). Force-exit uses `TriggerableWithdrawals` directly, not the gateway. Detail: [`06`](./06-vaults.md).
 
 ### 5. Triggerable validator exit (EIP-7002 forced exit)
 

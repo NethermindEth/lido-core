@@ -40,7 +40,7 @@ member/SUBMIT_DATA_ROLE → AccountingOracle.submitReportData(data, contractVers
   → OracleReportSanityChecker.checkExitedValidatorsRatePerDay(...)
   → WithdrawalQueue.onOracleReport(isBunkerMode, prevTs, curTs)          // bunker flag → 04
   → Accounting.handleOracleReport(reportValues)                          // [flow 2] — all share-state changes here
-  → LazyOracle.updateReportData(root, cid)                              // vault NAV root → 06
+  → LazyOracle.updateReportData(timestamp, refSlot, root, cid)         // vault NAV root → 06
   → store extraDataHash/format/count (async per-operator exited counts follow)
 External: HashConsensus quorum, off-chain daemon. `OracleDaemonConfig` is an **on-chain** `AccessControlEnumerable` key-value store (`mapping(string => bytes)`) that the off-chain daemon reads for its parameters.
 ```
@@ -106,11 +106,11 @@ elif secondOpinionOracle == 0: revert IncorrectCLBalanceDecrease
 else: _askSecondOpinion(...)
 ```
 
-If the drop exceeds the envelope and a **Second Opinion Oracle** is configured, `_askSecondOpinion` calls `secondOpinionOracle.getReport(refSlot)` and requires **all** of: the call succeeded (else `NegativeRebaseFailedSecondOpinionReportIsNotReady`); the oracle's CL balance is **not below** the reported `postCLBalance`; within `clBalanceOraclesErrorUpperBPLimit` of it (upper-margin — the second opinion may read slightly higher); and its withdrawal-vault balance **exactly equals** the reported `wvBalance` (else `NegativeRebaseFailedWithdrawalVaultBalanceMismatch`). Any failure reverts the report. This is the primary defense against a malicious daemon under-reporting CL balance to fabricate a loss.
+If the drop exceeds the envelope and a **Second Opinion Oracle** is configured, `_askSecondOpinion` calls `secondOpinionOracle.getReport(refSlot)` and requires **all** of: the call succeeded (else `NegativeRebaseFailedSecondOpinionReportIsNotReady`); the oracle's CL balance (`clBalanceWei`) is **not below** the reported `postCLBalance`, and its excess `clBalanceWei − postCLBalance` is within `clBalanceOraclesErrorUpperBPLimit` of `clBalanceWei` itself (normalized by the second-opinion balance, not the report — it may read slightly higher); and its withdrawal-vault balance **exactly equals** the reported `wvBalance` (else `NegativeRebaseFailedWithdrawalVaultBalanceMismatch`). Any failure reverts the report. This is the primary defense against a malicious daemon under-reporting CL balance to fabricate a loss.
 
 **`smoothenTokenRebase` (clamp, not revert).** Caps EL+CL upside per report at `maxPositiveTokenRebase` (1e9 precision; defeats oracle-sandwiching MEV). A report over the cap is *clamped* — surplus ETH stays in the vaults, surplus shares stay unburnt for the next report. Also returns `sharesFromWQToBurn` (= `sharesToBurn − simulatedSharesToBurn`), the WQ-only slice used to verify `simulatedShareRate`. Inputs are **internal** ether/shares (`pre.totalPooledEther − externalEther`, `pre.totalShares − externalShares`) — the rate excludes external vault shares.
 
-**`checkSimulatedShareRate`** (only with batches): virtually returns the WQ-locked ether/shares to post-state and requires the submitted `simulatedShareRate` within `simulatedShareRateDeviationBPLimit` of recomputed `postInternalEther * 1e27 / postInternalShares`. **`checkWithdrawalQueueOracleReport`** requires the last finalizable request at least `requestTimestampMargin` old, blocking finalization of fresh requests at a stale rate (consumed in [`04`](./04-withdrawals.md#internal-mechanics)).
+**`checkSimulatedShareRate`** (only with batches): virtually returns the WQ-locked ether/shares to post-state and requires the submitted `simulatedShareRate` within `simulatedShareRateDeviationBPLimit` of recomputed `postInternalEther * 1e27 / postInternalShares`. **`checkWithdrawalQueueOracleReport`** requires the last finalizable request at least `requestTimestampMargin` old, blocking finalization of fresh requests at a stale rate (consumed in [`04`](./04-withdrawals.md#core-flows)).
 
 ### 4. Bad-debt internalize seam (LOAD-BEARING) → 06
 
@@ -144,7 +144,7 @@ Accounting → commitSharesToBurn(total)              → drains cover-first the
 External: Lido.transferSharesFrom (pull), Lido.burnShares (commit).
 ```
 
-`commitSharesToBurn(total)` reverts `BurnAmountExceedsActual` if `total > cover+nonCover requested`; drains cover-first, updates lifetime `totalCover/NonCoverSharesBurnt`, then `Lido.burnShares(total)` and asserts the per-bucket sum equals `total`. **Cover vs non-cover** is informational only (integrators split a rebase into rewards vs insurance via `getCoverSharesBurnt`/`getNonCoverSharesBurnt`); supply impact identical. `requestBurnShares` holders are **`ACCOUNTING` + `CSM_ACCOUNTING` only** (see [`07`](./07-governance-permissions.md#contracts)).
+`commitSharesToBurn(total)` reverts `BurnAmountExceedsActual` if `total > cover+nonCover requested`; drains cover-first, updates lifetime `totalCover/NonCoverSharesBurnt`, then `Lido.burnShares(total)` and asserts the per-bucket sum equals `total`. **Cover vs non-cover** is informational only (integrators split a rebase into rewards vs insurance via `getCoverSharesBurnt`/`getNonCoverSharesBurnt`); supply impact identical. `requestBurnShares` holders are **`ACCOUNTING` + `CSM_ACCOUNTING` only** (see [`07`](./07-governance-permissions.md#role-matrix-high-impact-roles-only)).
 
 ### 6. Burner — excess-stETH recovery and migrate
 
@@ -163,7 +163,7 @@ Recovery cannot touch shares marked for burning (requested buckets subtracted) a
 
 ## Internal mechanics
 
-- **Share rate is internal-only** — every rate computation (`smoothenTokenRebase`, fees, `checkSimulatedShareRate`) uses `totalPooledEther − externalEther` over `totalShares − externalShares`; the `1e27` `SHARE_RATE_PRECISION_E27` is *computation* precision, not token scaling (share-math SSOT: [`01`](./01-core-staking.md#internal-mechanics)).
+- **Share rate is internal-only** — every rate computation (`smoothenTokenRebase`, fees, `checkSimulatedShareRate`) uses `totalPooledEther − externalEther` over `totalShares − externalShares`; the `1e27` `SHARE_RATE_PRECISION_E27` is *computation* precision, not token scaling (share-math SSOT: [`01`](./01-core-staking.md#core-flows)).
 - **Fees only when profitable (LIP-12).** `_calculateTotalProtocolFeeShares` mints only when `clBalance + withdrawalsVaultTransfer > principalClBalance`; then `feeEther = totalRewards * totalFee / precisionPoints`, `sharesToMintAsFees = feeEther * internalSharesBeforeFees / (postInternalEther − feeEther)` — derived so minted shares exactly compensate the fee at the post-rebase rate. `_distributeFee` `transferShares` to each module recipient (residual to treasury).
 - **Pre-mutation guards in `_sanityChecks`.** `report.timestamp < block.timestamp` (`IncorrectReportTimestamp`); `preClValidators <= report.clValidators <= depositedValidators` (`IncorrectReportValidators`); `postInternalShares != 0` (`InternalSharesCantBeZero`).
 - **LimitsList packed** into `LimitsListPacked` (uint16/uint32/uint64); read via `unpack()` per call. History (`ReportData[]`) appended on every `checkAccountingOracleReport`, walked backward by timestamp for the 18/54-day LIP-23 sums.

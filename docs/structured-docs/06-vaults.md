@@ -159,7 +159,7 @@ anyone → LazyOracle.updateVaultData(vault, totalValue, cumulativeLidoFees, lia
   → if reportedTotalValue > onchainRefSlotValue * (10000 + maxRewardRatioBP)/10000 ⇒ QUARANTINE (positive jumps only; flat %, NOT time-scaled)
   → else fold in immediately (negative jumps always apply at once — slashing is real)
   → VaultHub.applyVaultReport(vault, ...)   // updates report, cumulativeLidoFees, minimalReserve, maxLiabilityShares (guarded)
-VaultHub → LazyOracle.removeVaultQuarantine(vault)   [msg.sender==locator.vaultHub()]   // early release on disconnect/rebalance
+VaultHub → LazyOracle.removeVaultQuarantine(vault)   [msg.sender==locator.vaultHub()]   // cleared on disconnect finalization (inside VaultHub.applyVaultReport)
 UPDATE_SANITY_PARAMS_ROLE → updateSanityParams(quarantinePeriod ≤ MAX_QUARANTINE_PERIOD=30d, maxRewardRatioBP, maxLidoFeeRatePerSecond)
 ```
 
@@ -199,6 +199,7 @@ Accounting._applyOracleReportContext (if badDebtToInternalize > 0):
   → Lido.internalizeExternalBadDebt(d)             // d shares external → internal; folds postExternalShares -= d, postInternalShares += d ⇒ internal rate drops
 ```
 The two calls must stay **paired** or the books desync (the socialize-vs-internalize double-settle surface).
+
 ### 10. Per-vault governance (Dashboard) and confirm spine
 
 `Dashboard` owns the vault while disconnected and proxies every hub call once connected. The split: **staker** (`DEFAULT_ADMIN_ROLE`, admins staker-side roles) controls capital — `FUND`/`WITHDRAW`/`MINT`/`BURN`/`REBALANCE`, `VAULT_CONFIGURATION`, beacon-deposit pause, exit/trigger, `VOLUNTARY_DISCONNECT`, `COLLECT_VAULT_ERC20`; **node operator** (`NODE_OPERATOR_MANAGER_ROLE`, own admin of the three operator sub-roles) controls fee + `NODE_OPERATOR_UNGUARANTEED_DEPOSIT`/`_PROVE_UNKNOWN_VALIDATOR`/`_FEE_EXEMPT`. Neither can grant itself the other's powers. `Permissions.renounceRole` disabled. Lifecycle: `connectToVaultHub` → `_transferOwnership(VAULT_HUB)`; `voluntaryDisconnect` collects operator fee into `feeLeftover`, stops accrual → `VaultHub.voluntaryDisconnect`; `abandonDashboard(newOwner)` (disconnected only); `reconnectToVaultHub` (needs `settledGrowth` correction if `feeRate > 0`); `transferVaultOwnership(newOwner)` is **dual-confirm** (`DEFAULT_ADMIN_ROLE` + `NODE_OPERATOR_MANAGER_ROLE`) → `VaultHub.transferVaultOwnership` (reassigns registry owner *without* disconnecting). `Dashboard.setPDGPolicy` sets `PDGPolicy` ∈ {`STRICT` (default), `ALLOW_PROVE`, `ALLOW_DEPOSIT_AND_PROVE`}; the two PDG-bypass entrypoints are `unguaranteedDepositToBeaconChain` (direct `depositContract.deposit`, skipping the 1-ETH predeposit+proof — `NODE_OPERATOR_UNGUARANTEED_DEPOSIT_ROLE`, requires `ALLOW_DEPOSIT_AND_PROVE`) and `proveUnknownValidatorsToPDG` (`NODE_OPERATOR_PROVE_UNKNOWN_VALIDATOR_ROLE`, forbidden under `STRICT`); default `STRICT` forbids both.

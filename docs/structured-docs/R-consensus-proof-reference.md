@@ -242,7 +242,7 @@ The request carries `source_pubkey ‖ target_pubkey`. There are two distinct pa
   `exit_epoch != FAR_FUTURE_EPOCH`; target `exit_epoch != FAR_FUTURE_EPOCH`; source too young
   (`current_epoch < source.activation_epoch + SHARD_COMMITTEE_PERIOD`); **`get_pending_balance_to_withdraw(source)
   > 0`**. Only when all pass does the CL churn-schedule the source's exit
-  (`compute_consolidation_epoch_and_update_churn`) and append a `PendingConsolidation`. (Per [`06`](./06-vaults.md#core-flows):
+  (`compute_consolidation_epoch_and_update_churn`) and append a `PendingConsolidation`. (Per [`06`](./06-vaults.md#key-constants):
   post-consolidation rewards above the source's effective balance sweep to the *source* WC, not the target.)
 
 ### EIP-6110 — `process_deposit_request` + `process_pending_deposits`

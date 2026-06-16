@@ -69,7 +69,7 @@ Read these first to anchor on properties that are known and intentional. Then lo
   {
     "description": "internalizeExternalBadDebt is the only path that lowers the share rate without removing shares, excluding fee-mint path.",
     "function": "Contract-wide",
-    "condition": "internalizeExternalBadDebt(n) decreases externalShares by n, totalShares unchanged, internalEther unchanged. externalEther falls by getPooledEthByShares(n), so totalPooledEther falls and the share rate drops for ALL holders. Auth-gated to _accounting(), it requires externalShares at least n. This is the protocol's mechanism for socializing vault-side losses, any non-Accounting caller path is a direct dilution attack on every stETH holder.",
+    "condition": "internalizeExternalBadDebt(n) decreases externalShares by n, totalShares unchanged, internalEther unchanged. externalEther falls (the n shares stop being externally backed and the internal-share denominator rises by n, so the drop is strictly larger than getPooledEthByShares(n), approaching it only for n much smaller than internalShares), so totalPooledEther falls and the share rate drops for ALL holders. Auth-gated to _accounting(), it requires externalShares at least n. This is the protocol's mechanism for socializing vault-side losses, any non-Accounting caller path is a direct dilution attack on every stETH holder.",
     "path": "contracts/0.4.24/Lido.sol"
   },
   {
@@ -237,7 +237,7 @@ Read these first to anchor on properties that are known and intentional. Then lo
   {
     "description": "A request can be claimed exactly once and only by its current owner",
     "function": "_claim",
-    "condition": "Preconditions enforced: _requestId != 0 AND _requestId <= lastFinalizedRequestId AND !request.claimed AND request.owner == msg.sender. On success request.claimed becomes true and the id is removed from _getRequestsByOwner()[owner]. A second successful claim, or a claim by a non-owner / non-approved address, is a violation.",
+    "condition": "Preconditions enforced: _requestId != 0 AND _requestId <= lastFinalizedRequestId AND !request.claimed AND request.owner == msg.sender. On success request.claimed becomes true and the id is removed from _getRequestsByOwner()[owner]. A second successful claim, or a claim by any address other than request.owner, is a violation (approvals grant transfer rights only, never claim rights).",
     "path": "contracts/0.8.9/WithdrawalQueueBase.sol"
   },
   {
@@ -261,7 +261,7 @@ Read these first to anchor on properties that are known and intentional. Then lo
   {
     "description": "Per-module deposit capacity respects stakeShareLimit and the module's available keys",
     "function": "_getDepositsAllocation",
-    "condition": "Let T = Σ_i cache[i].activeValidatorsCount + _depositsToAllocate. For each i: capacities[i] == min( (cache[i].stakeShareLimit * T) / TOTAL_BASIS_POINTS, cache[i].activeValidatorsCount + cache[i].availableValidatorsCount ). After MinFirstAllocationStrategy.allocate, allocations[i] <= capacities[i] for every i. Any final allocation above either the share-target or the (active+available) cap is a violation.",
+    "condition": "Let T = Σ_i cache[i].activeValidatorsCount + _depositsToAllocate. For each i: capacities[i] == min( (cache[i].stakeShareLimit * T) / TOTAL_BASIS_POINTS, cache[i].activeValidatorsCount + cache[i].availableValidatorsCount ). allocate only ADDS to allocations[i] (seeded at cache[i].activeValidatorsCount) and skips any bucket with allocations[i] >= capacities[i], never adding beyond a capacity. So allocations[i] <= capacities[i] for every i EXCEPT a module already over its share target on entry (capacities[i] = targetValidators < activeValidatorsCount), which keeps its over-target count with 0 new deposits — not a violation. Real invariant: cache[i].activeValidatorsCount <= allocations[i] <= max(capacities[i], cache[i].activeValidatorsCount); only ADDING deposits beyond capacities[i] is a violation.",
     "path": "contracts/0.8.9/StakingRouter.sol"
   },
   {

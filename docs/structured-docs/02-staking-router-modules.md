@@ -3,12 +3,12 @@ doc: "02"
 title: Staking Router & Modules
 contracts: [NodeOperatorsRegistry, StakingRouter, MinFirstAllocationStrategy]
 prereqs: ["01"]
-see_also: ["00","03","04","07"]
+see_also: ["00","03","04","05","07"]
 ssot_for: [module-allocation, fee-distribution, validator-counts, exit-reporting]
 ---
 # 02 — Staking Router and Modules
 
-> The core-pool traffic cop. Buffered ETH arrives from [`01` Lido](./01-core-staking.md#core-flows) (after the DSM deposit gate, doc 05); `StakingRouter` allocates it across `IStakingModule` modules, fans oracle-driven fees back, and ingests exited/exit-delay/forced-exit reports. Reports originate in [`03` accounting/oracle](./03-oracle-accounting.md#core-flows); exit verification lives in [`08`](./08-exits.md#external-interactions). CSM is a cross-repo module driven only through the `IStakingModule` seam.
+> The core-pool traffic cop. Buffered ETH arrives from [`01` Lido](./01-core-staking.md#core-flows) (after the DSM deposit gate, doc 05); `StakingRouter` allocates it across `IStakingModule` modules, fans oracle-driven fees back, and ingests exited/exit-delay/forced-exit reports. Reports originate in [`03` accounting/oracle](./03-oracle-accounting.md#core-flows); exit verification lives in [`08`](./08-exits.md#core-flows). CSM is a cross-repo module driven only through the `IStakingModule` seam.
 
 ## Contracts
 
@@ -50,7 +50,7 @@ bucket[i]   = activeValidators[i]                                              /
 
 ### 2. Module registration and config
 
-`addStakingModule(name, addr, stakeShareLimit, priorityExitShareThreshold, moduleFee, treasuryFee, maxDepositsPerBlock, minDepositBlockDistance)` (`STAKING_MODULE_MANAGE_ROLE`). Validation in `_updateStakingModule`: `stakeShareLimit ≤ TOTAL_BASIS_POINTS`; `priorityExitShareThreshold ≤ TOTAL_BASIS_POINTS` and `priorityExitShareThreshold ≥ stakeShareLimit`; `moduleFee + treasuryFee ≤ TOTAL_BASIS_POINTS`; `0 < minDepositBlockDistance ≤ uint64.max`; address non-zero and not already registered; count `< MAX_STAKING_MODULES_COUNT`. New module starts `Active` but `_updateModuleLastDepositState(…, 0)` simulates a zero deposit so DSM cannot deposit into it in the same block it was added. `updateStakingModule` mutates the same fields under the same role. `setStakingModuleStatus` flips `Active`/`DepositsPaused`/`Stopped`.
+`addStakingModule(name, addr, stakeShareLimit, priorityExitShareThreshold, moduleFee, treasuryFee, maxDepositsPerBlock, minDepositBlockDistance)` (`STAKING_MODULE_MANAGE_ROLE`). `addStakingModule` validates address non-zero, name non-empty and `≤ MAX_STAKING_MODULE_NAME_LENGTH`, count `< MAX_STAKING_MODULES_COUNT`, and address not already registered. It then delegates the param bounds to `_updateStakingModule`: `stakeShareLimit ≤ TOTAL_BASIS_POINTS`; `priorityExitShareThreshold ≤ TOTAL_BASIS_POINTS` and `≥ stakeShareLimit`; `moduleFee + treasuryFee ≤ TOTAL_BASIS_POINTS`; `0 < minDepositBlockDistance ≤ uint64.max`; `maxDepositsPerBlock ≤ uint64.max`. New module starts `Active` but `_updateModuleLastDepositState(…, 0)` simulates a zero deposit so DSM cannot deposit into it in the same block it was added. `updateStakingModule` mutates the same fields under the same role. `setStakingModuleStatus` flips `Active`/`DepositsPaused`/`Stopped`.
 
 ### 3. Fee distribution — reportRewardsMinted fan-out (load-bearing)
 
@@ -89,7 +89,7 @@ AccountingOracle.submitReportExtraDataList
       → module.onExitedAndStuckValidatorsCountsUpdated()      // EXT; arms reward distribution
 ValidatorExitDelayVerifier
   → reportValidatorExitDelay(id, noId, proofSlotTs, pubkey, eligibleToExitInSec)  (REPORT_VALIDATOR_EXITING_STATUS_ROLE)
-      → module.reportValidatorExitDelay(...)                  // EXT; assess delay penalty
+      → module.reportValidatorExitDelay(...)                  // EXT; records exit-delay report (NOR: event-only, no reward penalty)
 TriggerableWithdrawalsGateway
   → onValidatorExitTriggered(exitData[], paidFee, exitType)   (REPORT_VALIDATOR_EXIT_TRIGGERED_ROLE)
       → module.onValidatorExitTriggered(...)                  // EXT; per-entry try/catch
@@ -134,7 +134,7 @@ Reward state machine: `onRewardsMinted` → `TransferredToModule`; `onExitedAndS
 - **try/catch on module fan-out.** `reportRewardsMinted`, `onValidatorsCountsByNodeOperatorReportingFinished`, `onValidatorExitTriggered` wrap the module call in `try/catch`: a non-empty revert is swallowed and surfaced as an event (`RewardsMintedReportFailed`/`ExitedAndStuckValidatorsCountsUpdateFailed`/`StakingModuleExitNotificationFailed`) so one bad module cannot brick the report; an **empty** revert is treated as out-of-gas and re-thrown `UnrecoverableModuleError` (prevents gas-estimation binary-search returning a bogus value).
 - **StakingModule struct (packed).** `id (uint24)`, `stakingModuleFee/treasuryFee/stakeShareLimit/priorityExitShareThreshold (uint16)`, `status (uint8)`, `maxDepositsPerBlock/minDepositBlockDistance/lastDepositAt (uint64)`, plus `stakingModuleAddress`, `name`, `lastDepositBlock`, `exitedValidatorsCount`. The router's `exitedValidatorsCount` is the phase-1 aggregate and can legitimately differ from the module summary mid-frame.
 - **Shared (moduleId, nodeOperatorId) namespace.** One id space spans NOR (id=1), Simple DVT (id=2), CSM (id=3+). Core code that hardcodes `id == 1` or assumes NOR semantics breaks for other modules.
-- **NOR is Aragon ACL, not OZ.** Auth via `_auth(role)`/`canPerform`/`authP` (by operator id), distinct from `StakingRouter`'s OZ `AccessControlEnumerable`. `MAX_NODE_OPERATORS_COUNT = 200` bounds storage iteration. `reportValidatorExitDelay` dedupes by `keccak256(pubkey)` (idempotent), requires `eligibleToExitInSec ≥ exitDeadlineThreshold` and the proof slot within the cutoff window.
+- **NOR is Aragon ACL, not OZ.** Auth via `_auth(role)`/`canPerform`/`authP` (by operator id), distinct from `StakingRouter`'s OZ `AccessControlEnumerable`. `MAX_NODE_OPERATORS_COUNT = 200` bounds storage iteration. `reportValidatorExitDelay` dedupes by `keccak256(pubkey)` (idempotent), requires `eligibleToExitInSec ≥ exitDeadlineThreshold` and `proofSlotTimestamp - eligibleToExitInSec ≥ exitPenaltyCutoffTimestamp()` (the eligibility-start timestamp, not the proof slot itself, must be at/after the cutoff).
 - **Contract versions (mainnet).** `NodeOperatorsRegistry` is currently at v4 and `StakingRouter` at v3; both `finalizeUpgrade_vN` upgrades have already executed, so the exit-reporting surface described above is the live v4/v3 behavior.
 
 ## External interactions
@@ -160,7 +160,7 @@ NodeOperatorsRegistry
 
 ### CSM seam (boundary — module out of repo)
 
-CSM is the third major module (`lidofinance/community-staking-module`); only the `IStakingModule` interface is in-repo. `StakingRouter` drives it exclusively through that interface — `obtainDepositData`, `onRewardsMinted`, `onExitedAndStuckValidatorsCountsUpdated`, `onValidatorExitTriggered`, `reportValidatorExitDelay`, `decreaseVettedSigningKeysCount`, plus the summary views. Seam invariants to preserve under any change to the router, the extra-data decoder ([`03`](./03-oracle-accounting.md#external-interactions)), VEBO ([`08`](./08-exits.md#external-interactions)) / TWG ([`04`](./04-withdrawals.md#external-interactions)): call signatures, return shapes, event order; idempotent `reportValidatorExitDelay`; the shared id namespace. CSM holds operator bond as stETH **shares**, so a change to share-rate semantics or `Burner` ordering ([`03`](./03-oracle-accounting.md#internal-mechanics)) can mis-value bond. CSM internals (bond curve, strikes/performance oracle, `CSEjector`→TWG forced exits, `CSVerifier` proofs, V2 gates) are out of scope.
+CSM is the third major module (`lidofinance/community-staking-module`); only the `IStakingModule` interface is in-repo. `StakingRouter` drives it exclusively through that interface — `obtainDepositData`, `onRewardsMinted`, `onExitedAndStuckValidatorsCountsUpdated`, `onValidatorExitTriggered`, `reportValidatorExitDelay`, `decreaseVettedSigningKeysCount`, plus the summary views. Seam invariants to preserve under any change to the router, the extra-data decoder ([`03`](./03-oracle-accounting.md#core-flows)), VEBO ([`08`](./08-exits.md#external-interactions)) / TWG ([`04`](./04-withdrawals.md#external-interactions)): call signatures, return shapes, event order; idempotent `reportValidatorExitDelay`; the shared id namespace. CSM holds operator bond as stETH **shares**, so a change to share-rate semantics or `Burner` ordering ([`03`](./03-oracle-accounting.md#core-flows)) can mis-value bond. CSM internals (bond curve, strikes/performance oracle, `CSEjector`→TWG forced exits, `CSVerifier` proofs, V2 gates) are out of scope.
 
 > **Invariants:** see [`core-invariants.md` §4](./core-invariants.md#4-staking-router-and-allocations) — supplementary, not the full set; derive others from source.
 

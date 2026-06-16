@@ -8,7 +8,7 @@ ssot_for: [withdrawal-finalize, finalize-burn-chain, triggerable-twg]
 ---
 # 04 — Withdrawals
 
-> The stETH→ETH withdrawal path: request, oracle-driven finalize + burn chain, claim, bunker mode, and the EIP-7002 triggerable-withdrawal gateway (TWG). Finalization is **driven by the oracle report** ([`03`](./03-oracle-accounting.md#core-flows) queues the burn and calls `WithdrawalQueue.finalize`). The validator-exit machinery (VEB / VEBO / VEDV) lives in [`08`](./08-exits.md#core-flows); EIP-7002 specs are distilled in [`R`](./R-consensus-proof-reference.md#distilled-external-specs). Roles cross-index in [`07`](./07-governance-permissions.md#contracts).
+> The stETH→ETH withdrawal path: request, oracle-driven finalize + burn chain, claim, bunker mode, and the EIP-7002 triggerable-withdrawal gateway (TWG). Finalization is **driven by the oracle report** ([`03`](./03-oracle-accounting.md#core-flows) queues the burn and calls `WithdrawalQueue.finalize`). The validator-exit machinery (VEB / VEBO / VEDV) lives in [`08`](./08-exits.md#core-flows); EIP-7002 specs are distilled in [`R`](./R-consensus-proof-reference.md#distilled-external-specs). Roles cross-index in [`07`](./07-governance-permissions.md#role-matrix-high-impact-roles-only).
 
 ## Contracts
 
@@ -31,20 +31,22 @@ All four entrypoints (`requestWithdrawals`, `*WithPermit`, `*WstETH`, `*WstETHWi
 user → WithdrawalQueueERC721.requestWithdrawals(amounts[], owner)   // _checkResumed
   → per amount: require MIN_STETH_WITHDRAWAL_AMOUNT <= amount <= MAX_STETH_WITHDRAWAL_AMOUNT  // 100 wei .. 1000 ether
   → STETH.transferFrom(msg.sender, this, amount)   // wstETH path unwraps first
-  → shares = STETH.getSharesByPooledEth(amount); _enqueue: queue[++lastRequestId] = WithdrawalRequest{...}; _mint(owner, requestId)
+  → shares = STETH.getSharesByPooledEth(amount); _enqueue: queue[++lastRequestId] = WithdrawalRequest{...}; _getRequestsByOwner()[owner].add(requestId); _emitTransfer(0, owner, requestId)
 ```
 `cumulativeStETH`/`cumulativeShares` are **running totals**, so finalization reads a contiguous batch's exact stETH/shares in O(1) by differencing endpoints. `reportTimestamp` (last report seen at enqueue) is the batch-grouping key (flow 2).
 
 ### 2. Finalize on oracle report — the burn chain (LOAD-BEARING)
 The daemon pre-computes the optimal batch off-chain via `calculateFinalizationBatches(_maxShareRate, _maxTimestamp, _maxRequestsPerCall, state)` and packs the request ids into the report's `withdrawalFinalizationBatches` field. On-chain, [`03 Accounting`](./03-oracle-accounting.md#core-flows) re-derives the numbers and drives the burn **before** finalize:
 ```text
-Accounting._applyOracleReportContext
-  → WithdrawalQueue.prefinalize(batches[], simulatedShareRate) → (ethToLock, sharesToBurn)   // on-chain re-derivation
-  → Burner.requestBurnShares(withdrawalQueue, sharesToBurn)        // EXT: queues the WQ-finalized share burn
-  → Burner.commitSharesToBurn(totalAggregate)                     // EXT: commits the AGGREGATE (WQ + rebase) → Lido.burnShares
-  → Lido.collectRewardsAndProcessWithdrawals(wvTransfer, elTransfer, ethToLock, simulatedShareRate)
-      → WithdrawalVault.withdrawWithdrawals(wvTransfer)            // EXT: pulls CL-withdrawal ETH into buffer
-      → WithdrawalQueueERC721.finalize{value: ethToLock}(lastReqId, simulatedShareRate)   // _checkResumed + FINALIZE_ROLE(=Lido)
+Accounting.handleOracleReport(report)   // onlyAccountingOracle
+  → _simulateOracleReport → _calculateWithdrawals
+      → WithdrawalQueue.prefinalize(batches[], simulatedShareRate) → (ethToLock, sharesToBurn)   // on-chain re-derivation; SKIPPED if batches empty or WQ.isPaused()
+  → _applyOracleReportContext
+      → Burner.requestBurnShares(withdrawalQueue, sharesToBurn)    // EXT: queues the WQ-finalized share burn
+      → Burner.commitSharesToBurn(totalAggregate)                 // EXT: commits the AGGREGATE (WQ + rebase) → Lido.burnShares
+      → Lido.collectRewardsAndProcessWithdrawals(wvTransfer, elTransfer, ethToLock, simulatedShareRate)
+          → WithdrawalVault.withdrawWithdrawals(wvTransfer)        // EXT: pulls CL-withdrawal ETH into buffer
+          → WithdrawalQueueERC721.finalize{value: ethToLock}(lastReqId, simulatedShareRate)   // _checkResumed + FINALIZE_ROLE(=Lido)
 External: Lido, Burner, WithdrawalVault.
 ```
 Key ordering / invariants:
@@ -53,14 +55,14 @@ Key ordering / invariants:
 - `_finalize` reverts `TooMuchEtherToFinalize` if `msg.value` exceeds the batch's `cumulativeStETH` delta — ETH locked can never exceed stETH owed.
 - Rewards accrued while stETH sat queued are **not** re-attributed; they burn with the shares ("no rewards during exit").
 - **Stale-rate guard:** `requestTimestampMargin` is an on-chain `OracleReportSanityChecker.LimitsList` field (governance-set via `setRequestTimestampMargin` under `REQUEST_TIMESTAMP_MARGIN_MANAGER_ROLE`), enforced by `checkWithdrawalQueueOracleReport` (the last finalizable request must be at least that old); the daemon mirrors it into `_maxTimestamp` so only matured requests enter a batch — `calculateFinalizationBatches` breaks on `request.timestamp > _maxTimestamp`.
-- **`MAX_BATCHES_LENGTH = 36`** hard-caps the batches array (`break` on the 37th distinct batch) so on-chain `prefinalize`/`finalize` arrays stay gas-bounded. Same-report requests (equal `reportTimestamp`) collapse into one batch despite 1-2 wei rate drift.
+- **`MAX_BATCHES_LENGTH = 36`** caps only the off-chain `calculateFinalizationBatches` (`break` on the 37th distinct batch; also sizes its `BatchesCalculationState.batches` array), indirectly bounding what a daemon packs and so keeping on-chain `prefinalize` gas-bounded. `prefinalize` itself takes an arbitrary-length `_batches` array (no cap check); `finalize`/`_finalize` take a single `lastRequestIdToBeFinalized`, not an array. Same-report requests (equal `reportTimestamp`) collapse into one batch despite 1-2 wei rate drift.
 
 ### 3. Claim (caller-identity)
 ```text
 NFT owner → WithdrawalQueue.claimWithdrawal(id) / claimWithdrawals(ids[], hints[]) / claimWithdrawalsTo(ids[], hints[], recipient)
   → require id <= lastFinalizedRequestId, not claimed, ownerOf(id)==msg.sender
   → eth = _calculateClaimableEther: batchRate>checkpoint.maxShareRate ? shares*maxShareRate/E27 : cumulativeStETH delta
-  → claimed=true; _burn(id); lockedEtherAmount -= eth; low-level call eth → recipient
+  → claimed=true; _getRequestsByOwner()[request.owner].remove(id); lockedEtherAmount -= eth; low-level call eth → recipient; _emitTransfer(request.owner, 0, id)
 ```
 Client-supplied `hints` are range-checked in `_calculateClaimableEther` (reverting `InvalidHint`); `_findCheckpointHint` (binary search over `[1, lastCheckpointIndex]`) is the hint generator used by `findCheckpointHints` and by the no-hint `claimWithdrawal` (which runs the search itself, O(log n), costing more gas). 1-2 wei dust accrues per request from `/E27_PRECISION_BASE` rounding. Claiming stays available while paused.
 
@@ -108,7 +110,7 @@ struct WithdrawalRequest {        // WithdrawalQueueBase
     uint40 reportTimestamp;       // last report seen at enqueue — batch grouping key
 }
 ```
-**CEI / rounding / ordering hazards.** Burn-before-finalize (flow 2): shares are committed for burn though `finalize` runs later in the same tx — atomicity holds, but treat `prefinalize` numbers and `finalize`'s `msg.value` as a coupled pair (mismatch reverts `TooMuchEtherToFinalize`). Claim is CEI-clean (state flipped before the low-level ETH `call`), so no reentrancy lever (`claimed`/`_burn` precede the transfer). Discount math floors via integer `/E27_PRECISION_BASE` ⇒ protocol-favouring 1-2 wei dust.
+**CEI / rounding / ordering hazards.** Burn-before-finalize (flow 2): shares are committed for burn though `finalize` runs later in the same tx — atomicity holds, but treat `prefinalize` numbers and `finalize`'s `msg.value` as a coupled pair (mismatch reverts `TooMuchEtherToFinalize`). Claim is CEI-clean (state flipped before the low-level ETH `call`), so no reentrancy lever (`claimed`/owner-removal precede the ETH call; `_emitTransfer(owner,0,id)` after). Discount math floors via integer `/E27_PRECISION_BASE` ⇒ protocol-favouring 1-2 wei dust.
 
 **ExitLimitUtils sliding window.** Packed `ExitRequestLimitData` of five `uint32`s: `maxExitRequestsLimit`, `prevExitRequestsLimit`, `prevTimestamp`, `frameDurationInSec`, `exitsPerFrame`. `calculateCurrentExitLimit(now)` restores `prevExitRequestsLimit + framesPassed * exitsPerFrame` since `prevTimestamp`, capped at `max`; returns `prev` unchanged inside a frame or when `exitsPerFrame==0`. `updatePrevExitLimit` advances `prevTimestamp` only by whole frames (`passedTime -= passedTime % frameDuration`) so sub-frame time is not lost. `isExitLimitSet()` is `max != 0`; when unset, TWG/VEB treat the limit as `type(uint256).max` (no throttle). `setExitLimits` carries forward `exitsUsed = max - currentLimit`. Reverts: `TooLargeMaxExitRequestsLimit`/`TooLargeFrameDuration` (uint32), `TooLargeExitsPerFrame` (> max), `ZeroFrameDuration`. TWG and VEB each hold their own `ExitRequestLimitData` in a distinct storage slot, set by distinct roles (`TW_EXIT_LIMIT_MANAGER_ROLE` vs `EXIT_REQUEST_LIMIT_MANAGER_ROLE`); the two budgets are independent — consuming one never affects the other.
 
