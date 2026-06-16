@@ -200,6 +200,8 @@ OracleReportSanityChecker
   → StakingRouter.getStakingModule* / Burner.getSharesRequestedToBurn / WithdrawalQueue.getWithdrawalStatus (reads)
 ```
 
+> **Invariants:** see [`core-invariants.md` §2](./core-invariants.md#2-accounting-burn-and-report-execution) — supplementary, not the full set; derive others from source.
+
 ## Key constants
 
 | Constant | Value | Purpose |

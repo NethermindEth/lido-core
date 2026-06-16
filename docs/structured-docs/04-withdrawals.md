@@ -138,6 +138,8 @@ TriggerableWithdrawalsGateway
   → WithdrawalVault.addWithdrawalRequests ; StakingRouter.onValidatorExitTriggered
 ```
 
+> **Invariants:** see [`core-invariants.md` §3](./core-invariants.md#3-withdrawals) — supplementary, not the full set; derive others from source.
+
 ## Key constants
 
 | Constant | Value | Purpose |

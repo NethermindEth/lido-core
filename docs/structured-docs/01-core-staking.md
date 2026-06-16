@@ -175,6 +175,8 @@ EVENTS   Submitted, Unbuffered, DepositedValidatorsChanged, ELRewardsReceived, W
          ExternalBadDebtInternalized, Transfer, TransferShares, SharesBurnt
 ```
 
+> **Invariants:** see [`core-invariants.md` §1](./core-invariants.md#1-core-staking-and-tokens) — supplementary, not the full set; derive others from source.
+
 ## Key constants
 
 | Constant | Value | Purpose |

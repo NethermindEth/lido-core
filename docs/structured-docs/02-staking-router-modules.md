@@ -162,6 +162,8 @@ NodeOperatorsRegistry
 
 CSM is the third major module (`lidofinance/community-staking-module`); only the `IStakingModule` interface is in-repo. `StakingRouter` drives it exclusively through that interface — `obtainDepositData`, `onRewardsMinted`, `onExitedAndStuckValidatorsCountsUpdated`, `onValidatorExitTriggered`, `reportValidatorExitDelay`, `decreaseVettedSigningKeysCount`, plus the summary views. Seam invariants to preserve under any change to the router, the extra-data decoder ([`03`](./03-oracle-accounting.md#external-interactions)), VEBO ([`08`](./08-exits.md#external-interactions)) / TWG ([`04`](./04-withdrawals.md#external-interactions)): call signatures, return shapes, event order; idempotent `reportValidatorExitDelay`; the shared id namespace. CSM holds operator bond as stETH **shares**, so a change to share-rate semantics or `Burner` ordering ([`03`](./03-oracle-accounting.md#internal-mechanics)) can mis-value bond. CSM internals (bond curve, strikes/performance oracle, `CSEjector`→TWG forced exits, `CSVerifier` proofs, V2 gates) are out of scope.
 
+> **Invariants:** see [`core-invariants.md` §4](./core-invariants.md#4-staking-router-and-allocations) — supplementary, not the full set; derive others from source.
+
 ## Key constants
 
 | Constant | Value | Purpose |

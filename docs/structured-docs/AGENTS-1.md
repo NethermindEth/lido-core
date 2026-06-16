@@ -6,13 +6,14 @@ in-scope set (16 contracts); it is the per-contract navigation aid, not the gate
 Scope-2 vault contracts are trusted boundary edges only — see [`AGENTS-2.md`](./AGENTS-2.md).
 
 ## Scope load
-`00, 01, 02, 03, 04, 05` — the full Core-Pool set
+`00, 01, 02, 03, 04, 05, core-invariants` — the full Core-Pool set
 
 ## Using the docs
 - [`00-architecture-overview.md`](./00-architecture-overview.md) is the orientation — module map + the critical flows + the report-execution narrative (its SSOT).
-- The routing table maps each in-scope contract to its **primary** module (its home) and **secondary** modules (the seams). `prereqs` = read-first. The whole scope loads in full (see **Scope load** above; gated **≤ 30k tokens**); per-contract routing remains for targeted navigation within it.
+- The routing table maps each in-scope contract to its **primary** module (its home) and **secondary** modules (the seams). `prereqs` = read-first. The whole scope loads in full (see **Scope load** above); per-contract routing remains for targeted navigation within it.
 - Claims are cited by **symbol name**, not line numbers, so they resolve against live source.
 - **Source-of-truth & precedence:** where docs disagree, the **per-contract module is canonical**. The cross-contract role index lives in [`07` role matrix](./07-governance-permissions.md#role-matrix-high-impact-roles-only) — it is a derived navigation aid; on any conflict the cited per-contract module wins.
+- [`core-invariants.md`](./core-invariants.md) is a curated, **supplementary** set of load-bearing properties for the Core-Pool contracts — part of the Scope load. Treat it as orientation, **not** the audit-target set; keep deriving invariants from source.
 
 ## Routing (contract → modules; `prereqs` = read-first, `—` = none, `00` optional orientation)
 | Contract | path | primary | secondary | prereqs | scope |
