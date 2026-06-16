@@ -51,35 +51,35 @@ Read these first to anchor on properties that are known and intentional. Then lo
   {
     "description": "clValidators ≤ depositedValidators (transient-ether term is non-negative).",
     "function": "processClStateUpdate",
-    "condition": "After every processClStateUpdate (Lido.sol:803–818) and unsafeChangeDepositedValidators (:545), the condition clValidators ≤ depositedValidators should hold. The assert(depositedValidators ≥ clValidators) at :1048 to compute the internal ether will brick all share-rate reads if violated.",
+    "condition": "After every processClStateUpdate and unsafeChangeDepositedValidators, the condition clValidators ≤ depositedValidators should hold. The assert(depositedValidators ≥ clValidators) inside _getInternalEther will brick all share-rate reads if violated.",
     "path": "core/contracts/0.4.24/Lido.sol"
   },
   {
     "description": "Buffered ether is always ≤ the contract's ETH balance (modulo uncounted direct transfers).",
     
     "function": "Contract-wide",
-    "condition": "_getBufferedEther() ≤ address(this).balance at all times. Every credit to bufferedEther is gated by an actual ETH inflow (_submit requires msg.value != 0, :1026; receiveELRewards :494; receiveWithdrawals :507; rebalanceExternalEtherToInternal :769). Every debit matches an outflow (deposit sends exactly depositsCount·32 ETH to StakingRouter :651; collectRewardsAndProcessWithdrawals sends _etherToLockOnWithdrawalQueue :884). Overstating will result in deposit/finalize transfers reverting. While understating results in ether silently orphaned and excluded from the share rate.",
+    "condition": "_getBufferedEther() ≤ address(this).balance at all times. Every credit to bufferedEther is gated by an actual ETH inflow (_submit requires msg.value != 0; receiveELRewards; receiveWithdrawals; rebalanceExternalEtherToInternal). Every debit matches an outflow (deposit sends exactly depositsCount·32 ETH to StakingRouter; collectRewardsAndProcessWithdrawals sends _etherToLockOnWithdrawalQueue). Overstating will result in deposit/finalize transfers reverting. While understating results in ether silently orphaned and excluded from the share rate.",
     "path": "core/contracts/0.4.24/Lido.sol"
   },
   {
     "description": "Each ETH inflow path is bijectively paired with a specific accounting update.",
     
     "function": "Contract-wide",
-    "condition": "Three pairings: (1) default payable / submit (Lido.sol:1025–1039): mint shares to msg.sender AND increment bufferedEther by msg.value. (2) receiveELRewards (:494–500, _auth(_elRewardsVault)) : increment TOTAL_EL_REWARDS_COLLECTED by msg.value (buffer credited later, inside collectRewardsAndProcessWithdrawals during the report). (3) receiveWithdrawals (:507–511, _auth(_withdrawalVault)) : event-only at inflow (buffer credited inside the report). Bijection must hold both ways: every accounting-update path requires a matching msg.value of the same magnitude, and every ETH-receiving path through Lido's own code must trigger its paired update.",
+    "condition": "Three pairings: (1) default payable / submit: mint shares to msg.sender AND increment bufferedEther by msg.value. (2) receiveELRewards (_auth(_elRewardsVault)) : increment TOTAL_EL_REWARDS_COLLECTED by msg.value (buffer credited later, inside collectRewardsAndProcessWithdrawals during the report). (3) receiveWithdrawals (_auth(_withdrawalVault)) : event-only at inflow (buffer credited inside the report). Bijection must hold both ways: every accounting-update path requires a matching msg.value of the same magnitude, and every ETH-receiving path through Lido's own code must trigger its paired update.",
     "path": "core/contracts/0.4.24/Lido.sol"
   },
   {
     "description": "internalizeExternalBadDebt is the only path that lowers the share rate without removing shares, excluding fee-mint path.",
     
     "function": "Contract-wide",
-    "condition": "internalizeExternalBadDebt(n) decreases externalShares by n, totalShares unchanged, internalEther unchanged. externalEther falls by getPooledEthByShares(n), so totalPooledEther falls and the share rate drops for ALL holders. Auth-gated to _accounting() (:827), it requires externalShares at least n (:831). This is the protocol's mechanism for socializing vault-side losses, any non-Accounting caller path is a direct dilution attack on every stETH holder.",
+    "condition": "internalizeExternalBadDebt(n) decreases externalShares by n, totalShares unchanged, internalEther unchanged. externalEther falls by getPooledEthByShares(n), so totalPooledEther falls and the share rate drops for ALL holders. Auth-gated to _accounting(), it requires externalShares at least n. This is the protocol's mechanism for socializing vault-side losses, any non-Accounting caller path is a direct dilution attack on every stETH holder.",
     "path": "core/contracts/0.4.24/Lido.sol"
   },
   {
     "description": "The share-rate denominator (internalShares = totalShares − externalShares) is strictly positive and bounded by totalShares at all times.",
     
     "function": "Contract-wide",
-    "condition": "internalShares = totalShares − externalShares is at least initialBootstrap, which is greater than zero. Maintained by construction: bootstrap mints to INITIAL_TOKEN_HOLDER (0xdead) at _bootstrapInitialHolder create internal shares only, and no code path transfers or burns them. The inline comment 'never 0 because of the stone in the elevator' (:1083) is the protocol-wide assumption. Violation means division by zero in every share/ether conversion, so every transfer, submit, withdrawal, and rebase reverts.",
+    "condition": "internalShares = totalShares − externalShares is at least initialBootstrap, which is greater than zero. Maintained by construction: bootstrap mints to INITIAL_TOKEN_HOLDER (0xdead) at _bootstrapInitialHolder create internal shares only, and no code path transfers or burns them. The inline comment 'never 0 because of the stone in the elevator' inside _getShareRateDenominator is the protocol-wide assumption. Violation means division by zero in every share/ether conversion, so every transfer, submit, withdrawal, and rebase reverts.",
     "path": "core/contracts/0.4.24/Lido.sol"
   },
   {
@@ -127,7 +127,7 @@ Read these first to anchor on properties that are known and intentional. Then lo
     "description": "stETH transfer is share-conservative, not ether-conservative",
     
     "function": "Contract-wide",
-    "condition": "On transfer(to, amount) (StETH.sol:425): movedShares = getSharesByPooledEth(amount) (SafeMath.mul/div, rounds toward zero). The recipient's balanceOf increases by getPooledEthByShares(movedShares) ≤ amount; the sender's balance decreases by the same ≤ amount. The integer-division dust stays in the sender's share balance. Any code path that uses getPooledEthBySharesRoundUp to compute either side of a transfer, or that emits a Transfer(amount) event for a transfer that moved a non-matching share quantity, is a violation.",
+    "condition": "On StETH.transfer(to, amount): movedShares = getSharesByPooledEth(amount) (SafeMath.mul/div, rounds toward zero). The recipient's balanceOf increases by getPooledEthByShares(movedShares) ≤ amount; the sender's balance decreases by the same ≤ amount. The integer-division dust stays in the sender's share balance. Any code path that uses getPooledEthBySharesRoundUp to compute either side of a transfer, or that emits a Transfer(amount) event for a transfer that moved a non-matching share quantity, is a violation.",
     "path": "core/contracts/0.4.24/StETH.sol"
   },
   {
@@ -148,7 +148,7 @@ Read these first to anchor on properties that are known and intentional. Then lo
     "description": "Bad-debt internalization decrements VaultHub's counter and Lido's externalShares by the same amount within the same transaction.",
     
     "function": "_applyOracleReportContext",
-    "condition": "When preBadDebtToInternalize > 0: VaultHub.decreaseInternalizedBadDebt(badDebt) at Accounting.sol:349 is IMMEDIATELY followed by Lido.internalizeExternalBadDebt(badDebt) at :350. Both receive the same amount and both must succeed in the same tx (revert on either rolls back the other). If a vulnerability lets the two calls be issued separately, VaultHub's counter would advance while Lido's externalShares stayed inflated — the same bad debt becomes re-internalizable on the next report, double-applying dilution to every stETH holder. Any new code path that calls one without the other is a critical finding.",
+    "condition": "When preBadDebtToInternalize > 0: VaultHub.decreaseInternalizedBadDebt(badDebt) inside _applyOracleReportContext is IMMEDIATELY followed by Lido.internalizeExternalBadDebt(badDebt). Both receive the same amount and both must succeed in the same tx (revert on either rolls back the other). If a vulnerability lets the two calls be issued separately, VaultHub's counter would advance while Lido's externalShares stayed inflated — the same bad debt becomes re-internalizable on the next report, double-applying dilution to every stETH holder. Any new code path that calls one without the other is a critical finding.",
     "path": "core/contracts/0.8.9/Accounting.sol"
   },
   {
@@ -183,7 +183,7 @@ Read these first to anchor on properties that are known and intentional. Then lo
     "description": "prefinalize is view and its returned ETH/shares match what _finalize would lock",
     
     "function": "prefinalize / _finalize",
-    "condition": "prefinalize(batches, simulatedShareRate) is declared `view` (WithdrawalQueueBase.sol:293-328) and reads only queue counters and the input batches. Its returned (ethToLock, sharesToBurn) must equal what _finalize would lock when later called with (_lastRequestIdToBeFinalized = batches[last], _amountOfETH = ethToLock, _maxShareRate = simulatedShareRate): sharesToBurn equals queue[last].cumulativeShares − queue[lastFinalizedRequestId].cumulativeShares; ethToLock = Σ over batches of either (cumulativeStETH delta) for nominal batches or (sharesDelta × simulatedShareRate / 1e27) for discounted batches. A code path that mutates queue state during prefinalize, or causes _finalize to lock/burn different totals than prefinalize predicted, would let Accounting's post-state math diverge from realized chain state.",
+    "condition": "prefinalize(batches, simulatedShareRate) is declared `view` in WithdrawalQueueBase and reads only queue counters and the input batches. Its returned (ethToLock, sharesToBurn) must equal what _finalize would lock when later called with (_lastRequestIdToBeFinalized = batches[last], _amountOfETH = ethToLock, _maxShareRate = simulatedShareRate): sharesToBurn equals queue[last].cumulativeShares − queue[lastFinalizedRequestId].cumulativeShares; ethToLock = Σ over batches of either (cumulativeStETH delta) for nominal batches or (sharesDelta × simulatedShareRate / 1e27) for discounted batches. A code path that mutates queue state during prefinalize, or causes _finalize to lock/burn different totals than prefinalize predicted, would let Accounting's post-state math diverge from realized chain state.",
     "path": "contracts/0.8.9/WithdrawalQueueBase.sol"
   },
   {
@@ -225,7 +225,7 @@ Read these first to anchor on properties that are known and intentional. Then lo
     "description": "_applyOracleReportContext executes its sub-steps in a fixed order with no interleaving",
     
     "function": "_applyOracleReportContext",
-    "condition": "Within _applyOracleReportContext (Accounting.sol:329-393) the calls execute in this exact order: (1) _sanityChecks; (2) burner.requestBurnShares for WQ-shares (if any); (3) LIDO.processClStateUpdate; (4) LIDO.internalizeExternalBadDebt (if pre.badDebtToInternalize > 0); (5) burner.commitSharesToBurn; (6) LIDO.collectRewardsAndProcessWithdrawals; (7) LIDO.mintShares for sharesToMintAsFees; (8) _distributeFee (transferShares to recipients + treasury);  (9) stakingRouter.reportRewardsMinted; (10) _notifyRebaseObserver → postTokenRebaseReceiver.handlePostTokenRebase (only if registered); (11) LIDO.emitTokenRebase. No external call may be inserted between (1) and (10); no step may be reordered. Reordering changes the post-state math (e.g., fees computed against burned-but-not-finalized shares, or finalize priced against a post-mint rate), with no on-chain revert to signal the inconsistency.",
+    "condition": "Within _applyOracleReportContext the calls execute in this exact order: (1) _sanityChecks; (2) burner.requestBurnShares for WQ-shares (if any); (3) LIDO.processClStateUpdate; (4) LIDO.internalizeExternalBadDebt (if pre.badDebtToInternalize > 0); (5) burner.commitSharesToBurn; (6) LIDO.collectRewardsAndProcessWithdrawals; (7) LIDO.mintShares for sharesToMintAsFees; (8) _distributeFee (transferShares to recipients + treasury);  (9) stakingRouter.reportRewardsMinted; (10) _notifyRebaseObserver → postTokenRebaseReceiver.handlePostTokenRebase (only if registered); (11) LIDO.emitTokenRebase. No external call may be inserted between (1) and (10); no step may be reordered. Reordering changes the post-state math (e.g., fees computed against burned-but-not-finalized shares, or finalize priced against a post-mint rate), with no on-chain revert to signal the inconsistency.",
     "path": "contracts/0.8.9/Accounting.sol"
   }
 ]
@@ -280,7 +280,7 @@ Read these first to anchor on properties that are known and intentional. Then lo
     "description": "Queue request IDs and cumulative counters are strictly monotone",
     
     "function": "_enqueue",
-    "condition": "For every requestId r > 0 stored at WithdrawalQueueBase.sol:_getQueue()[r] (WithdrawalRequest struct fields at lines 46-59): r is assigned r = getLastRequestId() + 1 at _enqueue (line 374); after enqueue, queue[r].cumulativeStETH = queue[r-1].cumulativeStETH + amountOfStETH (strict increase since amountOfStETH ≥ MIN_STETH_WITHDRAWAL_AMOUNT = 100 wei); queue[r].cumulativeShares = queue[r-1].cumulativeShares + amountOfShares (strict increase). lastRequestId() is monotonically non-decreasing and only mutated in _enqueue. The queue's sentinel at index 0 holds cumulativeStETH = 0, cumulativeShares = 0, owner = address(0), claimed = true, reportTimestamp = 0. Any code path that writes to an existing queue[r] (other than the claimed flag), or assigns a non-sequential request id, breaks every cumulative-subtraction in prefinalize/_calcBatch/_calculateClaimableEther.",
+    "condition": "For every requestId r > 0 stored in WithdrawalQueueBase._getQueue()[r] (WithdrawalRequest struct defined in WithdrawalQueueBase): r is assigned r = getLastRequestId() + 1 inside _enqueue; after enqueue, queue[r].cumulativeStETH = queue[r-1].cumulativeStETH + amountOfStETH (strict increase since amountOfStETH ≥ MIN_STETH_WITHDRAWAL_AMOUNT = 100 wei); queue[r].cumulativeShares = queue[r-1].cumulativeShares + amountOfShares (strict increase). lastRequestId() is monotonically non-decreasing and only mutated in _enqueue. The queue's sentinel at index 0 holds cumulativeStETH = 0, cumulativeShares = 0, owner = address(0), claimed = true, reportTimestamp = 0. Any code path that writes to an existing queue[r] (other than the claimed flag), or assigns a non-sequential request id, breaks every cumulative-subtraction in prefinalize/_calcBatch/_calculateClaimableEther.",
     "path": "contracts/0.8.9/WithdrawalQueueBase.sol"
   }
 ]
