@@ -7,7 +7,6 @@ unit (the **Scope load** is). Scope-1 Core-Pool contracts are trusted boundary e
 
 ## Scope load
 `00, 06, 07, R, 08` — the full V3-stVaults set
-(`00` is lean orientation; the VaultHub↔Accounting bad-debt seam is folded into `06`, so full `03` is not loaded; validator exits in `08`.)
 
 ## Using the docs
 - [`00-architecture-overview.md`](./00-architecture-overview.md) is the orientation — module map + the critical flows.

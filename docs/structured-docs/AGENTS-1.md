@@ -7,7 +7,6 @@ Scope-2 vault contracts are trusted boundary edges only — see [`AGENTS-2.md`](
 
 ## Scope load
 `00, 01, 02, 03, 04, 05` — the full Core-Pool set
-(`00` is lean orientation; `04` is `04-withdrawals.md`; validator exits VEB / VEBO / VEDV are Scope 2's `08`.)
 
 ## Using the docs
 - [`00-architecture-overview.md`](./00-architecture-overview.md) is the orientation — module map + the critical flows + the report-execution narrative (its SSOT).
