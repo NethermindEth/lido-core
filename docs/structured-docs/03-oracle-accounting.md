@@ -72,7 +72,7 @@ C. _applyOracleReportContext (mutations, IN THIS EXACT ORDER)
    5. if totalSharesToBurn>0: Burner.commitSharesToBurn(totalSharesToBurn)   // commits aggregate → Lido.burnShares
    6. Lido.collectRewardsAndProcessWithdrawals(...)  → pulls ELRewardsVault + WithdrawalVault into buffer, WithdrawalQueue.finalize  // EXT
    7. if sharesToMintAsFees>0: Lido.mintShares(this, fees) → _distributeFee (transferShares) → StakingRouter.reportRewardsMinted   // MINT LAST
-   8. _notifyRebaseObserver → postTokenRebaseReceiver.handlePostTokenRebase(...) if registered   // EXT, try/catch on its observers
+   8. _notifyRebaseObserver → postTokenRebaseReceiver.handlePostTokenRebase(...) if registered   // EXT
    9. Lido.emitTokenRebase(...) → TokenRebased
 External: AccountingOracle (caller), VaultHub, Lido, StakingRouter, Burner, WithdrawalQueue, postTokenRebaseReceiver.
 ```
