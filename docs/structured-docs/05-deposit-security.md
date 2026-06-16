@@ -137,7 +137,7 @@ DSM has no role on `Lido` and no role on `StakingRouter` except `STAKING_MODULE_
 - `0.8.9/BeaconChainDepositor.sol` — `_makeBeaconChainDeposits32ETH`, `_computeDepositDataRoot`, `DEPOSIT_SIZE`, `DEPOSIT_SIZE_IN_GWEI_LE64` (reviewed via `StakingRouter`; see [`02`](./02-staking-router-modules.md)).
 - `0.8.9/StakingRouter.sol` — `STAKING_MODULE_UNVETTING_ROLE` and `decreaseStakingModuleVettedKeysCountByNodeOperator` (UNVET target).
 
-**Official docs (context/docs/...):**
+**Official docs (docs/docs/):**
 - `contracts/deposit-security-module.md` — guardian quorum (4/6), message types, view/admin methods.
 - `guides/deposit-security-manual.md` — front-running vuln (LIP-5), Deposit Security Committee, threat model.
 - `contracts/staking-router.md` — unvet target and deposit dispatch.

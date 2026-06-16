@@ -184,4 +184,4 @@ CSM is the third major module (`lidofinance/community-staking-module`); only the
 - `0.4.24/nos/NodeOperatorsRegistry.sol` — Aragon-ACL Curated/Simple-DVT; operator & key lifecycle, reward state machine + `_distributeRewards`, `getNodeOperatorSummary` (stuck hardcoded 0), `reportValidatorExitDelay`/`setExitDeadlineThreshold`.
 - `common/lib/MinFirstAllocationStrategy.sol` — `allocate`/`allocateToBestCandidate`. Boundary: `0.8.9/BeaconChainDepositor.sol`, `common/interfaces/IStakingModule.sol`.
 
-**Official docs (context/docs/...):** `contracts/staking-router.md`, `contracts/node-operators-registry.md`, `staking-modules/csm/` (CSM impl in `lidofinance/community-staking-module`).
+**Official docs (docs/docs/):** `contracts/staking-router.md`, `contracts/node-operators-registry.md`, `staking-modules/csm/` (CSM impl in `lidofinance/community-staking-module`).

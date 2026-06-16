@@ -130,4 +130,4 @@ Upgrade initializers gate on the stored version counter, not a role (no `onlyRol
 
 **Live source:** `0.8.9/Accounting.sol` (`_applyOracleReportContext` report ordering), `0.4.24/Lido.sol` (`submit`/`_getInternalEther`/`_getShareRate*`/`collectRewardsAndProcessWithdrawals`), `0.8.9/Burner.sol` (`requestBurnShares`/`commitSharesToBurn`), `0.8.9/LidoLocator.sol`.
 
-Official docs: `docs/introduction.mdx`, `docs/lido-v3-whitepaper.mdx`, `docs/contracts/lido-locator.md`, `docs/guides/dg-guide.md`.
+Official docs: `docs/docs/introduction.mdx`, `docs/docs/lido-v3-whitepaper.mdx`, `docs/docs/contracts/lido-locator.md`, `docs/docs/guides/dg-guide.md`.

@@ -237,7 +237,7 @@ Read these first to anchor on properties that are known and intentional. Then lo
   {
     "description": "A request can be claimed exactly once and only by its current owner",
     "function": "_claim",
-    "condition": "Preconditions enforced: _requestId != 0 AND _requestId <= lastFinalizedRequestId AND !request.claimed AND request.owner == msg.sender. On success request.claimed becomes true and the id is removed from _requestsByOwner[owner]. A second successful claim, or a claim by a non-owner / non-approved address, is a violation.",
+    "condition": "Preconditions enforced: _requestId != 0 AND _requestId <= lastFinalizedRequestId AND !request.claimed AND request.owner == msg.sender. On success request.claimed becomes true and the id is removed from _getRequestsByOwner()[owner]. A second successful claim, or a claim by a non-owner / non-approved address, is a violation.",
     "path": "contracts/0.8.9/WithdrawalQueueBase.sol"
   },
   {

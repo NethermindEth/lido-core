@@ -13,7 +13,7 @@ unit (the **Scope load** is). Scope-1 Core-Pool contracts are trusted boundary e
 - The routing table maps each in-scope contract to its **primary** module (its home) and **secondary** modules (the seams). `prereqs` = read-first. The whole scope loads in full (see **Scope load** above); per-contract routing remains for targeted navigation within it. A `VaultHub` audit needs only `06`: the Accounting-side bad-debt seam is folded into `06`'s bad-debt flow, so full `03` is not loaded in this scope.
 - Claims are cited by **symbol name**, not line numbers, so they resolve against live source.
 - **Source-of-truth & precedence:** where docs disagree, the **per-contract module is canonical**. The cross-contract role index lives in [`07` role matrix](./07-governance-permissions.md#role-matrix-high-impact-roles-only) — a derived navigation aid; on any conflict the cited per-contract module wins.
-- The V3 vault docs live outside `context/docs/docs/` — in the V3 Technical Paper (`context/docs/static/Lido_V3_Whitepaper.pdf`) and the `context/docs/run-on-lido/stvaults/` tree.
+- The V3 vault docs live outside `docs/docs/` — in the V3 Technical Paper (`docs/Lido_V3_Whitepaper.pdf`) and the `docs/run-on-lido/stvaults/` tree.
 
 ## Routing (contract → modules; `prereqs` = read-first, `—` = none, `00` optional orientation)
 | Contract | path | primary | secondary | prereqs | scope |

@@ -159,4 +159,4 @@ EIP-7002 spec (56-byte `48-byte pubkey ‖ 8-byte uint64 amount` request, `amoun
 **Live source** (every symbol cited inline above resolves against these files):
 - `contracts/0.8.9/`: `WithdrawalQueue.sol` / `WithdrawalQueueBase.sol` / `WithdrawalQueueERC721.sol` (request/finalize/claim, `calculateFinalizationBatches`/`prefinalize`/`_finalize`, `onOracleReport`/bunker sentinel, `MAX_BATCHES_LENGTH`/`E27_PRECISION_BASE`); `WithdrawalVault.sol` / `WithdrawalVaultEIP7002.sol` (`withdrawWithdrawals`/`NotLido`, `WITHDRAWAL_REQUEST`, `_checkFee == fee`); `TriggerableWithdrawalsGateway.sol` (`triggerFullWithdrawals`, `_checkFee >=`, `preservesEthBalance`); `lib/ExitLimitUtils.sol` (sliding window).
 
-**Official docs (context/docs/docs/):** `contracts/withdrawal-queue-erc721.md`, `contracts/withdrawal-vault.md`, `contracts/triggerable-withdrawals-gateway.md`.
+**Official docs (docs/docs/):** `contracts/withdrawal-queue-erc721.md`, `contracts/withdrawal-vault.md`, `contracts/triggerable-withdrawals-gateway.md`.

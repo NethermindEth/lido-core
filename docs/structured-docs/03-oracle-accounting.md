@@ -226,4 +226,4 @@ OracleReportSanityChecker
 - `contracts/0.8.9/Burner.sol` — `REQUEST_BURN_SHARES_ROLE`/`REQUEST_BURN_MY_STETH_ROLE`, `requestBurnShares`/`requestBurnSharesForCover`/`requestBurnMy*`, `commitSharesToBurn` (accounting-gated), `getExcessStETH`/`recoverExcessStETH`/`recoverERC20`/`recoverERC721`, `migrate` (Lido-only), `initialize`.
 - `contracts/0.8.9/sanity_checks/OracleReportSanityChecker.sol` — `LimitsList`, `smoothenTokenRebase`, `checkAccountingOracleReport` (gated `CalledNotFromAccounting`), `_checkCLBalanceDecrease`/`_askSecondOpinion` (LIP-23), `checkSimulatedShareRate`/`checkWithdrawalQueueOracleReport`/`checkExitedValidatorsRatePerDay`/`checkExtraData*`/`checkExitBusOracleReport`, `setOracleReportLimits`.
 
-**Official docs (`context/docs/...`):** `contracts/burner.md`, `contracts/oracle-report-sanity-checker.md`, `contracts/accounting-oracle.md`, `contracts/lido.md`.
+**Official docs (`docs/docs/`):** `contracts/burner.md`, `contracts/oracle-report-sanity-checker.md`, `contracts/accounting-oracle.md`, `contracts/lido.md`.

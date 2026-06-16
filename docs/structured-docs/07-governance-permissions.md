@@ -171,4 +171,4 @@ DG/Escrow/GateSeal numerics are deployment parameters in external repos — conf
 - `upgrade/V3VoteScript.sol` — revokes `REQUEST_BURN_SHARES_ROLE` from `Lido`/curated/SimpleDVT/old-CSM-accounting on the old Burner; grants `REPORT_REWARDS_MINTED_ROLE` to `Accounting`, and PDG `PAUSE_ROLE`/config-manager to `AGENT`.
 - External authorities: `GateSeal` (Vyper), `lidofinance/dual-governance` (`Timelock`/`Executor`, `Escrow`, `ResealManager`), Aragon `AGENT`/Voting, `lidofinance/easy-track`.
 
-**Official docs (context/docs/...):** `lido-dao.md`, `contracts/lido-locator.md`, `contracts/gate-seal.md`, `contracts/ossifiable-proxy.md`, `guides/dg-guide.md`, `guides/easy-track-guide.md`; external `dual-governance/docs/specification.md` (authoritative state-machine + escrow spec).
+**Official docs (docs/docs/):** `lido-dao.md`, `contracts/lido-locator.md`, `contracts/gate-seal.md`, `contracts/ossifiable-proxy.md`, `guides/dg-guide.md`, `guides/easy-track-guide.md`; external `dual-governance/docs/specification.md` (authoritative state-machine + escrow spec).

@@ -196,4 +196,4 @@ EVENTS   Submitted, Unbuffered, DepositedValidatorsChanged, ELRewardsReceived, W
 - `0.4.24/StETH.sol` — `getSharesByPooledEth`/`getPooledEthByShares[RoundUp]`, `_transfer*`/`_mintShares`/`_burnShares`/`_mintInitialShares`, share-rate hooks, `INITIAL_TOKEN_HOLDER`/`UINT128_MAX`.
 - `0.4.24/lib/StakeLimitUtils.sol` — `StakeLimitState.Data` packed slot, `calculateCurrentStakeLimit`/`setStakingLimit`/`isStakingPaused`/`isStakingLimitSet`, branchless `_constGasMin`/`_constGasMax`/`_saturatingSub`.
 
-**Official docs (`context/docs/`):** `contracts/lido.md`, `guides/lido-tokens-integration-guide.md` (rebase-event caveats), `guides/protocol-levers.md`.
+**Official docs (`docs/docs/`):** `contracts/lido.md`, `guides/lido-tokens-integration-guide.md` (rebase-event caveats), `guides/protocol-levers.md`.

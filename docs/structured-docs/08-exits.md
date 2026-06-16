@@ -109,4 +109,4 @@ EIP-4788 / SSZ proof model (`historical_summaries` fallback, GIndex navigation, 
 **Live source** (every symbol cited inline above resolves against these files):
 - `contracts/0.8.9/oracle/`: `ValidatorsExitBus.sol` / `ValidatorsExitBusOracle.sol` (`triggerExits`/`getDeliveryTimestamp`/`unpackExitRequest`, hash registry, `DATA_FORMAT_LIST`/`PACKED_REQUEST_LENGTH`, `initialize`/`finalizeUpgrade_v2`). `contracts/0.8.25/ValidatorExitDelayVerifier.sol` (`BEACON_ROOTS`/`FAR_FUTURE_EPOCH`, `verify[Historical]ValidatorExitDelay`, `_getSecondsSinceExitIsEligible`).
 
-**Official docs (context/docs/docs/):** `contracts/validators-exit-bus-oracle.md`, `contracts/validator-exit-delay-verifier.md`, `guides/oracle-spec/validator-exit-bus.md`, `guides/oracle-spec/penalties.md`.
+**Official docs (docs/docs/):** `contracts/validators-exit-bus-oracle.md`, `contracts/validator-exit-delay-verifier.md`, `guides/oracle-spec/validator-exit-bus.md`, `guides/oracle-spec/penalties.md`.
