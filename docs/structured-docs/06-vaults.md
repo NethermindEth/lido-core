@@ -85,7 +85,7 @@ Dashboard.burn{Shares,StETH,WstETH} [BURN_ROLE] → transferSharesFrom(sender→
 The solvency core. `liability(shares) = getPooledEthBySharesRoundUp(shares)`. A vault is **unhealthy** when `_isThresholdBreached(totalValue, liabilityShares, forcedRebalanceThresholdBP)`, i.e. `liability(liabilityShares) > totalValue * (10000 − forcedRebalanceThresholdBP) / 10000`. `totalValue = report.totalValue + inOutDelta.currentValue() − report.inOutDelta` (live between reports).
 
 ```text
-withdraw cap (ERRATUM #1 — NOT totalValue − locked − obligationsShortfall):
+withdraw cap (NOT totalValue − locked − obligationsShortfall):
   available  = min(availableBalance(vault), totalValue)                 // availableBalance = balance − stagedBalance
   step1      = available − redemptionValue        ; if redemptionValue > available ⇒ 0   (redemptionValue = pooledEthRoundUp(redemptionShares))
   feesIncl   = min(step1, unlocked)               ; unlocked = totalValue − locked (floored at 0)
@@ -105,7 +105,7 @@ forceRebalance(vault)  — PERMISSIONLESS (no role, no owner check); fresh repor
 
 The unhealthy state is the authorization — no role gate. `_obligationsShares = max(healthShortfallShares, redemptionShares)`; `healthShortfallShares` solves `(L−X)/(TV−X) = (10000−reserveRatioBP)/10000` for the ETH `X` to repay, `+100` shares rounding safety, capped at `liabilityShares` (returns `type(uint256).max` when `liability > totalValue`, i.e. bad debt — un-rebalanceable). Voluntary deleveraging is `rebalance(vault, shares)` [owner, fresh report]; force-rebalance does **not** settle Lido fees. `settleLidoFees(vault)` [permissionless, fresh report] sends `min(withdrawableFeesIncluded, unsettledFees)` to treasury.
 
-### 4. Validator exits and force-exit (load-bearing, ERRATUM #2)
+### 4. Validator exits and force-exit (load-bearing)
 
 ```text
 VaultHub.requestValidatorExit(vault, pubkeys) [owner] → StakingVault.requestValidatorExit → emits events only (off-chain operators honor)
@@ -140,7 +140,7 @@ Threat: a malicious operator deposits a vault's 32 ETH to a validator carrying *
 
 `predeposit` guards: `EmptyDeposits`, depositor gate, and per deposit `PredepositAmountInvalid` (must equal `PREDEPOSIT_AMOUNT` = 1 ETH), `ValidatorNotNew`, and BLS `verifyDepositMessage` — the on-chain proof the predeposited validator is genuine (not someone else's key).
 
-Bond plumbing (all `PredepositGuarantee`): `topUpNodeOperatorBalance(nodeOperator)` [payable, guarantor]; **`withdrawNodeOperatorBalance(nodeOperator, amount, recipient)`** [`onlyGuarantorOf`] — ERRATUM #9 arg order; `amount` must be a multiple of `PREDEPOSIT_AMOUNT` and only *unlocked* bond; `setNodeOperatorGuarantor`/`setNodeOperatorDepositor` (who funds / who deposits); `claimGuarantorRefund(recipient)`. Reentrancy: `pendingActivations` is decremented **before** the external call in the activate/top-up path.
+Bond plumbing (all `PredepositGuarantee`): `topUpNodeOperatorBalance(nodeOperator)` [payable, guarantor]; **`withdrawNodeOperatorBalance(nodeOperator, amount, recipient)`** [`onlyGuarantorOf`]; `amount` must be a multiple of `PREDEPOSIT_AMOUNT` and only *unlocked* bond; `setNodeOperatorGuarantor`/`setNodeOperatorDepositor` (who funds / who deposits); `claimGuarantorRefund(recipient)`. Reentrancy: `pendingActivations` is decremented **before** the external call in the activate/top-up path.
 
 `MeIfNobodyElse` is the self-guarantor sentinel: `getValueOrKey(map, key)` returns `key` when `map[key] == address(0)`, and `setOrReset(map, key, value)` stores `address(0)` when `value == key`. So an operator with no explicit guarantor/depositor is, by default, its own guarantor and depositor (typical for sole-operator vaults) without a storage write.
 
@@ -198,13 +198,12 @@ Accounting._applyOracleReportContext (if badDebtToInternalize > 0):
   → VaultHub.decreaseInternalizedBadDebt(d)        // debits this bucket (flow 9)
   → Lido.internalizeExternalBadDebt(d)             // d shares external → internal; folds postExternalShares -= d, postInternalShares += d ⇒ internal rate drops
 ```
-The two calls must stay **paired** or the books desync (the socialize-vs-internalize double-settle surface). A Scope-2 audit stresses this from VaultHub's side — stale/forged `badDebtToInternalizeForLastRefSlot`, sim/exec divergence, an unpaired call — without loading the rest of `03`.
-
+The two calls must stay **paired** or the books desync (the socialize-vs-internalize double-settle surface).
 ### 10. Per-vault governance (Dashboard) and confirm spine
 
 `Dashboard` owns the vault while disconnected and proxies every hub call once connected. The split: **staker** (`DEFAULT_ADMIN_ROLE`, admins staker-side roles) controls capital — `FUND`/`WITHDRAW`/`MINT`/`BURN`/`REBALANCE`, `VAULT_CONFIGURATION`, beacon-deposit pause, exit/trigger, `VOLUNTARY_DISCONNECT`, `COLLECT_VAULT_ERC20`; **node operator** (`NODE_OPERATOR_MANAGER_ROLE`, own admin of the three operator sub-roles) controls fee + `NODE_OPERATOR_UNGUARANTEED_DEPOSIT`/`_PROVE_UNKNOWN_VALIDATOR`/`_FEE_EXEMPT`. Neither can grant itself the other's powers. `Permissions.renounceRole` disabled. Lifecycle: `connectToVaultHub` → `_transferOwnership(VAULT_HUB)`; `voluntaryDisconnect` collects operator fee into `feeLeftover`, stops accrual → `VaultHub.voluntaryDisconnect`; `abandonDashboard(newOwner)` (disconnected only); `reconnectToVaultHub` (needs `settledGrowth` correction if `feeRate > 0`); `transferVaultOwnership(newOwner)` is **dual-confirm** (`DEFAULT_ADMIN_ROLE` + `NODE_OPERATOR_MANAGER_ROLE`) → `VaultHub.transferVaultOwnership` (reassigns registry owner *without* disconnecting). `Dashboard.setPDGPolicy` sets `PDGPolicy` ∈ {`STRICT` (default), `ALLOW_PROVE`, `ALLOW_DEPOSIT_AND_PROVE`}; the two PDG-bypass entrypoints are `unguaranteedDepositToBeaconChain` (direct `depositContract.deposit`, skipping the 1-ETH predeposit+proof — `NODE_OPERATOR_UNGUARANTEED_DEPOSIT_ROLE`, requires `ALLOW_DEPOSIT_AND_PROVE`) and `proveUnknownValidatorsToPDG` (`NODE_OPERATOR_PROVE_UNKNOWN_VALIDATOR_ROLE`, forbidden under `STRICT`); default `STRICT` forbids both.
 
-Confirm spine `Dashboard → NodeOperatorFee → Permissions → AccessControlConfirmable → Confirmations`: `Confirmations._collectAndCheckConfirmations(msg.data, confirmingRoles())` records one confirmation per role keyed by **exact calldata**, executing only once **all** roles confirm within `confirmExpiry` (default 1 day, bounded `MIN_CONFIRM_EXPIRY = 1 hours` .. `MAX_CONFIRM_EXPIRY = 30 days` — ERRATUM #13: no `confirmExpiry` *constant*). A caller holding all roles passes in one tx. Used by `transferVaultOwnership`, `setFeeRate`, `correctSettledGrowth`, `setConfirmExpiry`, OperatorGrid tier/share-limit ops.
+Confirm spine `Dashboard → NodeOperatorFee → Permissions → AccessControlConfirmable → Confirmations`: `Confirmations._collectAndCheckConfirmations(msg.data, confirmingRoles())` records one confirmation per role keyed by **exact calldata**, executing only once **all** roles confirm within `confirmExpiry` (default 1 day, bounded `MIN_CONFIRM_EXPIRY = 1 hours` .. `MAX_CONFIRM_EXPIRY = 30 days` — no `confirmExpiry` *constant*). A caller holding all roles passes in one tx. Used by `transferVaultOwnership`, `setFeeRate`, `correctSettledGrowth`, `setConfirmExpiry`, OperatorGrid tier/share-limit ops.
 
 ### 11. Operator fee (NodeOperatorFee)
 

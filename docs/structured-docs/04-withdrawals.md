@@ -48,7 +48,7 @@ Accounting._applyOracleReportContext
 External: Lido, Burner, WithdrawalVault.
 ```
 Key ordering / invariants:
-- The **burn is requested and committed against the WQ's own stETH balance by Accounting** (errata: NOT inside `finalize`). `WQ.finalize` only checkpoints (appends exactly one `Checkpoint`, bumping `lastCheckpointIndex`), locks ETH, advances `lastFinalizedRequestId`; it never touches shares. Aggregate `commitSharesToBurn` (errata #3) folds WQ shares with the rebase burn so `Lido.burnShares` runs once.
+- The **burn is requested and committed against the WQ's own stETH balance by Accounting** (not inside `finalize`). `WQ.finalize` only checkpoints (appends exactly one `Checkpoint`, bumping `lastCheckpointIndex`), locks ETH, advances `lastFinalizedRequestId`; it never touches shares. Aggregate `commitSharesToBurn` folds WQ shares with the rebase burn so `Lido.burnShares` runs once.
 - `prefinalize` clamps each batch: if `batchShareRate > _maxShareRate` the ether is **discounted** to `shares × _maxShareRate / E27_PRECISION_BASE`; else nominal `stETH`. There is **no on-chain bunker branch** — the conservative bunker rate is realized purely by the daemon passing a lower `_maxShareRate` (the bunker flag in flow 4 only steers that off-chain choice).
 - `_finalize` reverts `TooMuchEtherToFinalize` if `msg.value` exceeds the batch's `cumulativeStETH` delta — ETH locked can never exceed stETH owed.
 - Rewards accrued while stETH sat queued are **not** re-attributed; they burn with the shares ("no rewards during exit").

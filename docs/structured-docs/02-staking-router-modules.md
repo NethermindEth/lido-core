@@ -100,7 +100,7 @@ External: AccountingOracle, ValidatorExitDelayVerifier, TriggerableWithdrawalsGa
 
 Phase ordering matters: phase-1 router totals drive *allocation and fee weight* immediately, but the module learns per-operator counts only in phase 2, then reconciles in `onExitedAndStuckValidatorsCountsUpdated`. If phase 2 spills into the next frame, the router emits `StakingModuleExitedValidatorsIncompleteReporting` and the module carries stale per-operator data for a frame — each module must tolerate this. `unsafeSetExitedValidatorsCount(...)` (`UNSAFE_SET_EXITED_VALIDATORS_ROLE`) is the DAO escape hatch: bypasses the monotonic/non-decrease invariant against expected current values, flagged unsafe in source.
 
-ERRATA — stuck validators DEPRECATED: there is **no** `reportStakingModuleStuckValidatorsCountByNodeOperator` and no stuck path through the router. `AccountingOracle` extra-data `itemType=1` (legacy `EXTRA_DATA_TYPE_STUCK_VALIDATORS`) now reverts `DeprecatedExtraDataType`. In NOR, `getNodeOperatorSummary` hardcodes `stuckValidatorsCount = 0` (and `refundedValidatorsCount = 0`, `stuckPenaltyEndTimestamp = 0`); `getStuckPenaltyDelay()` returns 0. The exit-delay penalty model replaces the old stuck/refunded counters.
+**Stuck validators (deprecated):** there is **no** `reportStakingModuleStuckValidatorsCountByNodeOperator` and no stuck path through the router. `AccountingOracle` extra-data `itemType=1` (legacy `EXTRA_DATA_TYPE_STUCK_VALIDATORS`) now reverts `DeprecatedExtraDataType`. In NOR, `getNodeOperatorSummary` hardcodes `stuckValidatorsCount = 0` (and `refundedValidatorsCount = 0`, `stuckPenaltyEndTimestamp = 0`); `getStuckPenaltyDelay()` returns 0. The exit-delay penalty model replaces the old stuck/refunded counters.
 
 ### 5. NOR operator and key lifecycle, reward distribution
 
@@ -172,7 +172,7 @@ CSM is the third major module (`lidofinance/community-staking-module`); only the
 | `MAX_STAKING_MODULE_NAME_LENGTH` | 31 | Module-name byte cap |
 | `MAX_NODE_OPERATORS_COUNT` | 200 | NOR per-module operator cap (bounds storage iteration) |
 | `MAX_UINT256` | 2**256 − 1 | `MinFirstAllocationStrategy` no-candidate sentinel |
-| `MAX_STUCK_PENALTY_DELAY` | 365 days | Legacy NOR constant; stuck-penalty logic removed (see errata) |
+| `MAX_STUCK_PENALTY_DELAY` | 365 days | Legacy NOR constant; stuck-penalty logic removed |
 
 ## Source references
 

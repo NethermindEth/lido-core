@@ -126,7 +126,7 @@ C.4 (if > 0):
 
 In `_simulateOracleReport` the bad debt is folded as `postInternalShares += badDebt` and `postExternalShares = externalShares − badDebt` ("can't underflow by design"). Net: external shares shrink, internal shares grow by the same count, so internal-holder share rate **drops** — the vault loss is borne by stakers. The two calls must stay paired (VaultHub debit + Lido move) or the books desync — the socialize-vs-internalize double-settle surface. How `VaultHub` accrues bad debt: [`06`](./06-vaults.md#core-flows). **Sim/exec divergence:** the live `badDebtToInternalize()` (permissionless simulate twin) and the snapshotted `…ForLastRefSlot()` (on-chain) can differ — the daemon must simulate against the current ref-slot view.
 
-### 5. Burner — share-burn queue (RESTORED)
+### 5. Burner — share-burn queue
 
 Burns *decrease* `totalShares` to effect a positive rebase. Requests sit pending (held as stETH on the Burner)
 until the next report commits them. Two role-gated entry families plus the cover/non-cover split:
@@ -146,7 +146,7 @@ External: Lido.transferSharesFrom (pull), Lido.burnShares (commit).
 
 `commitSharesToBurn(total)` reverts `BurnAmountExceedsActual` if `total > cover+nonCover requested`; drains cover-first, updates lifetime `totalCover/NonCoverSharesBurnt`, then `Lido.burnShares(total)` and asserts the per-bucket sum equals `total`. **Cover vs non-cover** is informational only (integrators split a rebase into rewards vs insurance via `getCoverSharesBurnt`/`getNonCoverSharesBurnt`); supply impact identical. `requestBurnShares` holders are **`ACCOUNTING` + `CSM_ACCOUNTING` only** (see [`07`](./07-governance-permissions.md#contracts)).
 
-### 6. Burner — excess-stETH recovery and migrate (RESTORED)
+### 6. Burner — excess-stETH recovery and migrate
 
 stETH sent to the Burner *outside* the request path is not auto-burnt — it sits as `getExcessStETH()` (= `sharesOf(Burner) − coverRequested − nonCoverRequested`, via `_getExcessStETHShares`). Recovery is **permissionless by design** and hard-wired to treasury, so accidental sends are never burned irrecoverably:
 

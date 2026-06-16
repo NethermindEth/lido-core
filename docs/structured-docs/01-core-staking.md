@@ -58,32 +58,32 @@ External: StakingRouter (→ staking module → beacon deposit contract).
 
 ### 3. Share rate and rebase math — LOAD-BEARING
 
-stETH has no stored balances: `balanceOf(a) = sharesOf(a) * numerator / denominator`. `Lido` **overrides** the StETH base hooks (which default to total/total) so the rate uses INTERNAL totals only (errata #6):
+stETH has no stored balances: `balanceOf(a) = sharesOf(a) * numerator / denominator`. `Lido` **overrides** the StETH base hooks (which default to total/total) so the rate uses INTERNAL totals only:
 
 ```text
 shareRate = _getShareRateNumerator() / _getShareRateDenominator()
           = _getInternalEther()      / (totalShares - externalShares)
-_getInternalEther() = bufferedEther + transientEther + clBalance     // errata #10
+_getInternalEther() = bufferedEther + transientEther + clBalance
   transientEther = (depositedValidators - clValidators) * 32 ETH      // in-flight deposits
 ```
 
-There is **no `1e27` factor on the token** — the `1e27`-scaled `preShareRate`/`postShareRate` in the `TokenRebased` event comments are the oracle/WQ APR convention, not the token's conversion (errata #6/#11). External shares are *excluded* from the rate so minting/burning vault-backed shares cannot dilute the rate for ordinary holders; `totalPooledEther = internalEther + externalEther` with `externalEther = externalShares * internalEther / internalShares` keeps both share types at the same price. There is **no `Transfer` event on rebase** — only on explicit transfers; integrators watch `TokenRebased`. The rebase is not one entrypoint: `Accounting` (flow 5) calls a sequence of mutators that move CL balance, buffer, and shares, each shifting the rate.
+There is **no `1e27` factor on the token** — the `1e27`-scaled `preShareRate`/`postShareRate` in the `TokenRebased` event comments are the oracle/WQ APR convention, not the token's conversion. External shares are *excluded* from the rate so minting/burning vault-backed shares cannot dilute the rate for ordinary holders; `totalPooledEther = internalEther + externalEther` with `externalEther = externalShares * internalEther / internalShares` keeps both share types at the same price. There is **no `Transfer` event on rebase** — only on explicit transfers; integrators watch `TokenRebased`. The rebase is not one entrypoint: `Accounting` (flow 5) calls a sequence of mutators that move CL balance, buffer, and shares, each shifting the rate.
 
 ### 4. EL rewards and withdrawal intake
 
 ```text
 LidoExecutionLayerRewardsVault → Lido.receiveELRewards()  (payable)
   → _auth(_elRewardsVault())                              // locator-resolved caller
-  → TOTAL_EL_REWARDS_COLLECTED += msg.value               // errata #12: buffer NOT bumped here
+  → TOTAL_EL_REWARDS_COLLECTED += msg.value               // buffer NOT bumped here
   → emit ELRewardsReceived
 
 WithdrawalVault → Lido.receiveWithdrawals()  (payable)
   → _auth(_withdrawalVault())
-  → emit WithdrawalsReceived                              // errata #12: only an event; no buffer write
+  → emit WithdrawalsReceived                              // only an event; no buffer write
 External: locator-registered EL-rewards vault / withdrawal vault only.
 ```
 
-Crucial subtlety (errata #12): neither hook touches `bufferedEther`. The ETH sits on the contract balance; the buffer figure only rises later, inside `collectRewardsAndProcessWithdrawals`, when `Accounting` pulls these amounts during the report (flow 5). This separation is why a stray ETH send with empty calldata mints user shares (fallback == submit) rather than silently becoming protocol rewards.
+Crucial subtlety: neither hook touches `bufferedEther`. The ETH sits on the contract balance; the buffer figure only rises later, inside `collectRewardsAndProcessWithdrawals`, when `Accounting` pulls these amounts during the report (flow 5). This separation is why a stray ETH send with empty calldata mints user shares (fallback == submit) rather than silently becoming protocol rewards.
 
 ### 5. Report-driven mutators (← Accounting / Burner)
 
@@ -145,7 +145,7 @@ holder → approve / increaseAllowance / decreaseAllowance / permit         // N
 
 ## Internal mechanics
 
-**StakeLimitUtils — packed single-slot accumulator.** `STAKING_STATE_POSITION` packs four fields into one 256-bit slot: `maxStakeLimit` (uint96, bits 160-255), `maxStakeLimitGrowthBlocks` (uint32, 128-159), `prevStakeLimit` (uint96, 32-127), `prevStakeBlockNumber` (uint32, 0-31). Sentinels: **paused** ⇔ `prevStakeBlockNumber == 0`; **unlimited** ⇔ `maxStakeLimit == 0` (with `prevStakeBlockNumber != 0`). `calculateCurrentStakeLimit` branches on `prevStakeLimit < maxStakeLimit`. With `change = blocksPassed * (maxStakeLimit / maxStakeLimitGrowthBlocks)`: if true, returns `min(prevStakeLimit + change, maxStakeLimit)` (refill, capped); else `max(_saturatingSub(prevStakeLimit, change), maxStakeLimit)` (drain, floored — `prevStakeLimit > maxStakeLimit` is reachable via `burnExternalShares`, decays per-block). Branchless via `_constGasMin/_constGasMax/_saturatingSub` (gas independent of block delta). Each `submit`/`mintExternalShares` calls `_decreaseStakingLimit`: reverts `STAKING_PAUSED`, reverts `STAKE_LIMIT` if `amount > currentLimit`, else writes `prevStakeLimit = currentLimit − amount` and stamps `prevStakeBlockNumber = block.number`. `burnExternalShares` does the inverse without moving ETH. The accumulator is in **wei** — **no `1e3 wei` precision constant** (errata #11).
+**StakeLimitUtils — packed single-slot accumulator.** `STAKING_STATE_POSITION` packs four fields into one 256-bit slot: `maxStakeLimit` (uint96, bits 160-255), `maxStakeLimitGrowthBlocks` (uint32, 128-159), `prevStakeLimit` (uint96, 32-127), `prevStakeBlockNumber` (uint32, 0-31). Sentinels: **paused** ⇔ `prevStakeBlockNumber == 0`; **unlimited** ⇔ `maxStakeLimit == 0` (with `prevStakeBlockNumber != 0`). `calculateCurrentStakeLimit` branches on `prevStakeLimit < maxStakeLimit`. With `change = blocksPassed * (maxStakeLimit / maxStakeLimitGrowthBlocks)`: if true, returns `min(prevStakeLimit + change, maxStakeLimit)` (refill, capped); else `max(_saturatingSub(prevStakeLimit, change), maxStakeLimit)` (drain, floored — `prevStakeLimit > maxStakeLimit` is reachable via `burnExternalShares`, decays per-block). Branchless via `_constGasMin/_constGasMax/_saturatingSub` (gas independent of block delta). Each `submit`/`mintExternalShares` calls `_decreaseStakingLimit`: reverts `STAKING_PAUSED`, reverts `STAKE_LIMIT` if `amount > currentLimit`, else writes `prevStakeLimit = currentLimit − amount` and stamps `prevStakeBlockNumber = block.number`. `burnExternalShares` does the inverse without moving ETH. The accumulator is in **wei** — **no `1e3 wei` precision constant**.
 
 **Hard caps.** `setStakingLimit` requires `maxStakeLimit <= uint96.max / 2` (Lido-level) and the library additionally requires `maxStakeLimit <= uint96.max`, `maxStakeLimit >= perBlock`, and `maxStakeLimit/perBlock <= uint32.max`. `setStakingLimit` resets `prevStakeLimit` to the new max only when staking was paused/unlimited or the new max is below the old `prevStakeLimit`.
 
@@ -153,7 +153,7 @@ holder → approve / increaseAllowance / decreaseAllowance / permit         // N
 
 **Conversion rounding.** `getSharesByPooledEth` rounds **down** (`eth * denom / numer`), `getPooledEthByShares` rounds **down**, `getPooledEthBySharesRoundUp` uses `ceilDiv` — used by `rebalanceExternalEtherToInternal` so the vault never underpays. Inputs must be `< UINT128_MAX`. Total shares are stored in the low 128 bits with a `SHARES_OVERFLOW` mask check on mint.
 
-**Stuck-validators touchpoint (errata #7).** `stuckValidatorsCount` is DEPRECATED protocol-wide; at the staking side the count is hardcoded to 0 and oracle extra-data `itemType=1` reverts `DeprecatedExtraDataType`. Full detail in [`02`](./02-staking-router-modules.md).
+**Stuck-validators touchpoint.** `stuckValidatorsCount` is DEPRECATED protocol-wide; at the staking side the count is hardcoded to 0 and oracle extra-data `itemType=1` reverts `DeprecatedExtraDataType`. Full detail in [`02`](./02-staking-router-modules.md).
 
 ## External interactions
 
