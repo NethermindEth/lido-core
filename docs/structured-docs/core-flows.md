@@ -1,30 +1,30 @@
-  ---
-  doc: "core-flows"
-  title: Critical Flows — Supplementary Context
-  contracts: []
-  prereqs: []
-  see_also: ["00", "01", "02", "03", "04", "05"]
-  ssot_for: []
-  ---
-  # Critical Flows — Supplementary Context (Core Pool)
+---
+doc: "core-flows"
+title: Critical Flows — Supplementary Context
+contracts: []
+prereqs: []
+see_also: ["00", "01", "02", "03", "04", "05"]
+ssot_for: []
+---
+# Critical Flows — Supplementary Context (Core Pool)
 
-  > Four flows in the Core Pool that touch multiple contracts and are worth orienting around early. This file is **supplementary context, not a scope boundary** — it highlights important paths, but the agent should also examine flows, code paths, and edge cases not covered here. Use this as one lens among many.
+> Four flows in the Core Pool that touch multiple contracts and are worth orienting around early. This file is **supplementary context, not a scope boundary** — it highlights important paths, but the agent should also examine flows, code paths, and edge cases not covered here. Use this as one lens among many.
 
-  ## What's in this file
-  - Flow A — Oracle report and token rebase.
-  - Flow B — Deposit allocation & validator accounting.
-  - Flow C — Withdrawal finalization and claim.
-  - Flow D — EIP-7002 triggerable validator exits.
+## What's in this file
+- Flow A — Oracle report and token rebase.
+- Flow B — Deposit allocation & validator accounting.
+- Flow C — Withdrawal finalization and claim.
+- Flow D — EIP-7002 triggerable validator exits.
 
-  Each entry has: *Why it matters*, *What it does* (numbered steps), *Contracts involved*.
+Each entry has: *Why it matters*, *What it does* (numbered steps), *Contracts involved*.
 
-  ## What this file is NOT
-  - Not the canonical mechanics for any flow. Per-step mechanics live in the per-contract structured docs.
-  - Not exhaustive. Smaller flows (administrative operations, view-only paths, edge-case branches) are out of this file's frame and still in scope for review.
-  - Not an ordering signal. The "Flow A/B/C/D" naming is for reference inside this file only; it does not imply that other paths deserve less scrutiny.
+## What this file is NOT
+- Not the canonical mechanics for any flow. Per-step mechanics live in the per-contract structured docs.
+- Not exhaustive. Smaller flows (administrative operations, view-only paths, edge-case branches) are out of this file's frame and still in scope for review.
+- Not an ordering signal. The "Flow A/B/C/D" naming is for reference inside this file only; it does not imply that other paths deserve less scrutiny.
 
-  ## How to use it
-  Read this first to get oriented on the multi-contract flows. Then go to the per-contract docs for mechanics, and to the source for everything else.
+## How to use it
+Read this first to get oriented on the multi-contract flows. Then go to the per-contract docs for mechanics, and to the source for everything else.
 
 ## **Flow A: Oracle report and rebase flow**
 
