@@ -9,7 +9,7 @@ ssot_for: [report-execution-detail, damage-bound, share-burn-timing, bad-debt-in
 # 03 — Oracle Accounting & Report Execution
 
 > The report-execution *narrative* (where the rebase comes from, who triggers it) is the SSOT of
-> [`00`](./00-architecture-overview.md#the-four-critical-flows). This doc owns the **execution detail**:
+> [`00`](./00-architecture-overview.md#the-critical-flows). This doc owns the **execution detail**:
 > `handleOracleReport` step ordering, the on-chain damage bound, share-burn timing, and the bad-debt
 > internalize seam to [`06`](./06-vaults.md). WQ finalization continues in
 > [`04`](./04-withdrawals.md#core-flows).
@@ -29,7 +29,7 @@ ssot_for: [report-execution-detail, damage-bound, share-burn-timing, bad-debt-in
 
 ### 1. Report ingest seam (gating only — narrative in 00)
 
-Gating **seam** only (committee / quorum / frame narrative in [`00`](./00-architecture-overview.md#the-four-critical-flows)); one member submits `ReportData` to `AccountingOracle.submitReportData` and the on-chain checks that matter are:
+Gating **seam** only (committee / quorum / frame narrative in [`00`](./00-architecture-overview.md#the-critical-flows)); one member submits `ReportData` to `AccountingOracle.submitReportData` and the on-chain checks that matter are:
 
 ```text
 HashConsensus.submitReport(refSlot, hash, consensusVersion)  // EXT: off-chain oracle daemon, quorum members
@@ -77,7 +77,7 @@ C. _applyOracleReportContext (mutations, IN THIS EXACT ORDER)
 External: AccountingOracle (caller), VaultHub, Lido, StakingRouter, Burner, WithdrawalQueue, postTokenRebaseReceiver.
 ```
 
-**Why ordering matters** (full narrative: [`00`](./00-architecture-overview.md#the-four-critical-flows) flow 2). The C-phase specifics this doc owns: the source comment makes minting the "final action that changes share rate", so **fees mint last** (C.7) against the post-rebase rate; `processClStateUpdate` (C.3) runs before the burns so beacon state is set before the rate moves; the WQ burn is **queued** in C.2 (`requestBurnShares`) but **committed as the aggregate** in C.5 (`commitSharesToBurn(totalSharesToBurn)` = cover/non-cover **plus** WQ shares); and `ReportValues` carries **no vault NAV/fee fields** — V3 vault reporting is the separate `LazyOracle.updateReportData` path ([`06`](./06-vaults.md#core-flows)), the only vault touch here being bad-debt internalize (C.4).
+**Why ordering matters** (full narrative: [`00`](./00-architecture-overview.md#the-critical-flows) flow 2). The C-phase specifics this doc owns: the source comment makes minting the "final action that changes share rate", so **fees mint last** (C.7) against the post-rebase rate; `processClStateUpdate` (C.3) runs before the burns so beacon state is set before the rate moves; the WQ burn is **queued** in C.2 (`requestBurnShares`) but **committed as the aggregate** in C.5 (`commitSharesToBurn(totalSharesToBurn)` = cover/non-cover **plus** WQ shares); and `ReportValues` carries **no vault NAV/fee fields** — V3 vault reporting is the separate `LazyOracle.updateReportData` path ([`06`](./06-vaults.md#core-flows)), the only vault touch here being bad-debt internalize (C.4).
 
 ### 3. Sanity bound — checkAccountingOracleReport (LOAD-BEARING)
 

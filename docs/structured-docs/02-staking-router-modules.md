@@ -96,6 +96,8 @@ TriggerableWithdrawalsGateway
 External: AccountingOracle, ValidatorExitDelayVerifier, TriggerableWithdrawalsGateway, each IStakingModule.
 ```
 
+`exitType` classifies why the exit was triggered and is forwarded unchanged to `module.onValidatorExitTriggered`; each module interprets it per its own implementation (module-side handling out of scope — CSM seam).
+
 Phase ordering matters: phase-1 router totals drive *allocation and fee weight* immediately, but the module learns per-operator counts only in phase 2, then reconciles in `onExitedAndStuckValidatorsCountsUpdated`. If phase 2 spills into the next frame, the router emits `StakingModuleExitedValidatorsIncompleteReporting` and the module carries stale per-operator data for a frame — each module must tolerate this. `unsafeSetExitedValidatorsCount(...)` (`UNSAFE_SET_EXITED_VALIDATORS_ROLE`) is the DAO escape hatch: bypasses the monotonic/non-decrease invariant against expected current values, flagged unsafe in source.
 
 ERRATA — stuck validators DEPRECATED: there is **no** `reportStakingModuleStuckValidatorsCountByNodeOperator` and no stuck path through the router. `AccountingOracle` extra-data `itemType=1` (legacy `EXTRA_DATA_TYPE_STUCK_VALIDATORS`) now reverts `DeprecatedExtraDataType`. In NOR, `getNodeOperatorSummary` hardcodes `stuckValidatorsCount = 0` (and `refundedValidatorsCount = 0`, `stuckPenaltyEndTimestamp = 0`); `getStuckPenaltyDelay()` returns 0. The exit-delay penalty model replaces the old stuck/refunded counters.

@@ -36,7 +36,7 @@ Lido is the largest Ethereum liquid-staking protocol. Users deposit ETH for **st
 R  reference      SSZ / GIndex proofs ; EIP-7002 / 7251 / 4788 distilled specs
 ```
 
-## The four critical flows
+## The critical flows
 
 ### 1. Submit and deposit (user → validator)
 
@@ -72,7 +72,7 @@ AccountingOracle -> Accounting.handleOracleReport(ReportValues)
         -> WithdrawalQueue.finalize{value}(...)   // lock ETH for batch @ checkpoint rate
    7. IF sharesToMintAsFees>0: Lido.mintShares(address(this)=Accounting) -> _distributeFee (transferShares -> modules + treasury) -> StakingRouter.reportRewardsMinted  // FEES LAST
    8. IF postTokenRebaseReceiver != 0: _notifyRebaseObserver(...) -> handlePostTokenRebase(...)  // EXT: optional rebase hook
-   9. Lido.emitTokenRebase(...)   // post-rebase event                      
+   9. Lido.emitTokenRebase(...)   // post-rebase event
 External: HashConsensus, AccountingOracle, ELRewardsVault, WithdrawalVault, EIP-4788 (proofs, separate path).
 ```
 **Why the ordering matters.** WQ-finalized shares are *queued* by `Burner.requestBurnShares` (step 2) but only *committed in aggregate* by `Burner.commitSharesToBurn(total)` (step 5), which drives `Lido.burnShares` — do not conflate the two. Burns commit **before** fees mint, so the burn happens at the pre-mint rate; **fees mint LAST** (step 7), settling against the already-rebased rate and never diluting the burn. Bad debt from insolvent V3 vaults is internalized (step 4) into the core share base before the burn/finalize, socializing the loss across all stETH holders. The accounting share rate is **internal ether / internal shares** (external vault ether/shares excluded; internal-ether composition in [`01`](./01-core-staking.md#internal-mechanics)). A **second, independent oracle** (separate `HashConsensus` + `ValidatorsExitBusOracle`/VEBO on a shorter frame, separate committee) publishes validator-exit requests (→ [`08`](./08-exits.md#core-flows)); it does not touch this accounting path. Detail: [`03`](./03-oracle-accounting.md).
@@ -100,6 +100,19 @@ LazyOracle -> VaultHub.applyVaultReport               // NAV via Merkle root + q
    VaultHub.burnShares -> Lido.burnExternalShares     // repay liability
 ```
 A V3 stVault is a separate non-custodial contract whose withdrawal credentials the staker owns; minting is bounded by the `OperatorGrid` tier (reserve ratio, share limit, fees), and below the health threshold the vault is force-rebalanced or its shortfall socialized as bad debt (internalized in flow 2). Vault NAV/fees flow on a separate `LazyOracle` path, **not** the accounting report; force-exit uses `TriggerableWithdrawals` directly, not the gateway. Detail: [`06`](./06-vaults.md).
+
+### 5. Triggerable validator exit (EIP-7002 forced exit)
+
+```text
+caller (permissionless; gated by a previously delivered exit-request hash, not a role)
+ -> ValidatorsExitBus.triggerExits(exitsData, indexes, refundRecipient)
+ -> TriggerableWithdrawalsGateway.triggerFullWithdrawals(validatorsData, refundRecipient, EXIT_TYPE)
+      // onlyRole ADD_FULL_WITHDRAWAL_REQUEST_ROLE (held by VEBO, reached via VEB); rate-limited via ExitLimitUtils; fee checked
+ -> WithdrawalVault.addWithdrawalRequests{value}(pubkeys, amounts=0)   // per-validator EIP-7002 predeploy call (amount 0 = full exit)
+ -> StakingRouter.onValidatorExitTriggered(...)      // notify modules; exitType = exit reason
+ -> refund surplus msg.value to refundRecipient
+```
+How the protocol forces validators to exit on its own schedule (e.g. unresponsive operators, slashed validators, rebalancing). Permissionless to call but gated by a previously delivered exit-request hash, and rate-limited; the gateway is the only authorized caller of the vault's EIP-7002 path. The exit-request publication (VEBO) and the permissionless exit-delay proof (VEDV) are separate paths in the same domain. Detail: VEB/VEBO/VEDV [`08`](./08-exits.md#core-flows); gateway + predeploy + fee/refund [`04`](./04-withdrawals.md#core-flows); EIP-7002 spec [`R`](./R-consensus-proof-reference.md#distilled-external-specs); module notification [`02`](./02-staking-router-modules.md#core-flows).
 
 ## Governance
 

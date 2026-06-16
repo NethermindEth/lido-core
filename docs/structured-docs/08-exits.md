@@ -42,7 +42,7 @@ VEBO.submitReportData(data, contractVersion)   // whenResumed; SUBMIT_DATA_ROLE 
 Hash-first: SUBMIT_REPORT_HASH_ROLE → submitExitRequestsHash(hash); then anyone → submitExitRequestsData(req)
   → keccak must match a staged, undelivered hash; _consumeLimit (sliding window); emit; mark delivered.
 ```
-VEBO is `AccountingOracle`'s twin (same `BaseOracle`/`HashConsensus` machinery, **separate committee + faster frame** to expedite exits) — consensus/quorum/frame model documented once in [`00`](./00-architecture-overview.md#the-four-critical-flows). Only the payload differs: `DATA_FORMAT_LIST = 1`, each request exactly 64 bytes `(uint24 moduleId ‖ uint40 nodeOpId ‖ uint64 valIndex ‖ bytes48 pubkey)`, strictly ascending by `(moduleId,nodeOpId,valIndex)` (else `InvalidRequestsDataSortOrder`); `moduleId==0` invalid. The emitted event is **advisory**; on-chain teeth come from flows 1 and 3.
+VEBO is `AccountingOracle`'s twin (same `BaseOracle`/`HashConsensus` machinery, **separate committee + faster frame** to expedite exits) — consensus/quorum/frame model documented once in [`00`](./00-architecture-overview.md#the-critical-flows). Only the payload differs: `DATA_FORMAT_LIST = 1`, each request exactly 64 bytes `(uint24 moduleId ‖ uint40 nodeOpId ‖ uint64 valIndex ‖ bytes48 pubkey)`, strictly ascending by `(moduleId,nodeOpId,valIndex)` (else `InvalidRequestsDataSortOrder`); `moduleId==0` invalid. The emitted event is **advisory**; on-chain teeth come from flows 1 and 3.
 
 ### 3. Permissionless exit-delay proof — VEDV (LOAD-BEARING)
 When a validator requested to exit via VEBO has its CL `exitEpoch` still unset past the per-operator threshold, **anyone** can prove the stall and report it for penalty:
@@ -75,7 +75,7 @@ Pausing VEBO blocks `submitReportData`/`submitExitRequestsData` (every `whenResu
 
 **VEBO init / version gate.** `initialize(admin, consensus, consensusVersion, lastProcessingRefSlot, maxValidatorsPerRequest, maxExitRequestsLimit, exitsPerFrame, frameDurationInSec)` grants `DEFAULT_ADMIN_ROLE` to `admin` (role-admin for all VEB/VEBO roles), pauses infinitely, wires consensus and v2 rate params. `finalizeUpgrade_v2(...)` is the one-shot v1→v2 migrator; both route through `_updateContractVersion(2)` so each runs at most once.
 
-**Exit-rate limit.** The sliding-window limit VEB consumes (`setExitRequestLimit`/`setMaxValidatorsPerReport`) and the one TWG consumes are both the packed `ExitLimitUtils` lib documented in [`04`](./04-withdrawals.md#internal-mechanics) (shared by TWG and VEB; `type(uint256).max` = no throttle when unset).
+**Exit-rate limit.** The sliding-window limit VEB consumes (`setExitRequestLimit`/`setMaxValidatorsPerReport`) and the one TWG consumes are each the packed `ExitLimitUtils` lib documented in [`04`](./04-withdrawals.md#internal-mechanics), applied to that contract's own slot under its own manager role — TWG's and VEB's budgets are independent; `type(uint256).max` = no throttle when unset.
 
 ## External interactions
 ```text

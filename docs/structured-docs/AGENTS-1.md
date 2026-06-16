@@ -6,12 +6,12 @@ in-scope set (16 contracts); it is the per-contract navigation aid, not the gate
 Scope-2 vault contracts are trusted boundary edges only — see [`AGENTS-2.md`](./AGENTS-2.md).
 
 ## Scope load
-`00, 01, 02, 03, 04, 05` — the full Core-Pool set, loaded together into one agent context (gated ≤26k tokens, lossless).
+`00, 01, 02, 03, 04, 05` — the full Core-Pool set
 (`00` is lean orientation; `04` is `04-withdrawals.md`; validator exits VEB / VEBO / VEDV are Scope 2's `08`.)
 
 ## Using the docs
-- [`00-architecture-overview.md`](./00-architecture-overview.md) is the orientation — module map + the four critical flows + the report-execution narrative (its SSOT).
-- The routing table maps each in-scope contract to its **primary** module (its home) and **secondary** modules (the seams). `prereqs` = read-first. The whole scope loads in full (see **Scope load** above; gated **≤ 26k tokens**); per-contract routing remains for targeted navigation within it.
+- [`00-architecture-overview.md`](./00-architecture-overview.md) is the orientation — module map + the critical flows + the report-execution narrative (its SSOT).
+- The routing table maps each in-scope contract to its **primary** module (its home) and **secondary** modules (the seams). `prereqs` = read-first. The whole scope loads in full (see **Scope load** above; gated **≤ 30k tokens**); per-contract routing remains for targeted navigation within it.
 - Claims are cited by **symbol name**, not line numbers, so they resolve against live source.
 - **Source-of-truth & precedence:** where docs disagree, the **per-contract module is canonical**. The cross-contract role index lives in [`07` role matrix](./07-governance-permissions.md#role-matrix-high-impact-roles-only) — it is a derived navigation aid; on any conflict the cited per-contract module wins.
 
