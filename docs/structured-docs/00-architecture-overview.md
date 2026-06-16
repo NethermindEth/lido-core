@@ -71,7 +71,8 @@ AccountingOracle -> Accounting.handleOracleReport(ReportValues)
         -> ELRewardsVault.withdrawRewards() ; WithdrawalVault.withdrawWithdrawals()  // EXT: pull into buffer
         -> WithdrawalQueue.finalize{value}(...)   // lock ETH for batch @ checkpoint rate
    7. IF sharesToMintAsFees>0: Lido.mintShares(address(this)=Accounting) -> _distributeFee (transferShares -> modules + treasury) -> StakingRouter.reportRewardsMinted  // FEES LAST
-   8. Lido.emitTokenRebase(...)                           // post-rebase event
+   8. IF postTokenRebaseReceiver != 0: _notifyRebaseObserver(...) -> handlePostTokenRebase(...)  // EXT: optional rebase hook
+   9. Lido.emitTokenRebase(...)   // post-rebase event                      
 External: HashConsensus, AccountingOracle, ELRewardsVault, WithdrawalVault, EIP-4788 (proofs, separate path).
 ```
 **Why the ordering matters.** WQ-finalized shares are *queued* by `Burner.requestBurnShares` (step 2) but only *committed in aggregate* by `Burner.commitSharesToBurn(total)` (step 5), which drives `Lido.burnShares` — do not conflate the two. Burns commit **before** fees mint, so the burn happens at the pre-mint rate; **fees mint LAST** (step 7), settling against the already-rebased rate and never diluting the burn. Bad debt from insolvent V3 vaults is internalized (step 4) into the core share base before the burn/finalize, socializing the loss across all stETH holders. The accounting share rate is **internal ether / internal shares** (external vault ether/shares excluded; internal-ether composition in [`01`](./01-core-staking.md#internal-mechanics)). A **second, independent oracle** (separate `HashConsensus` + `ValidatorsExitBusOracle`/VEBO on a shorter frame, separate committee) publishes validator-exit requests (→ [`08`](./08-exits.md#core-flows)); it does not touch this accounting path. Detail: [`03`](./03-oracle-accounting.md).
