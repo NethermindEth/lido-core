@@ -120,6 +120,8 @@ Three layers. (1) **Aragon DAO** (LDO) — root authority; on-chain votes set ro
 
 Upgrade initializers gate on the stored version counter, not a role (no `onlyRole`): a fresh-deploy `initialize` runs once (guarded by version `0` via `_initializeContractVersionTo`, or Aragon `onlyInit`); an upgrade `finalizeUpgrade_vN` requires the prior version `N-1` (`_checkContractVersion(N-1)`, or the equivalent +1 check via `_updateContractVersion` in the 0.8.9 contracts) before advancing the counter to N — so each is one-shot and a re-call reverts. `Burner` uses a one-shot `isMigrationAllowed` flag for the same effect. Each contract's current mainnet version is noted in its module.
 
+The V3 stVault singletons (`VaultHub`, `LazyOracle`, `OperatorGrid`, `PredepositGuarantee`) instead sit behind `OssifiableProxy` and are initialized **in their deploy transaction** (already executed on mainnet), while `StakingVault` impls upgrade through a shared `UpgradeableBeacon` rather than a per-proxy admin. Deployment state + pause status in [`06`](./06-vaults.md).
+
 ## Emergency response
 
 - **`GateSeal`** — single-use one-of-N committee that pauses `WithdrawalQueue`/`ValidatorsExitBusOracle` for a bounded window (cap set at construction, ≤ 14 days), then expires. Circuit breaker for mid-frame bugs.

@@ -33,7 +33,7 @@ ssot_for: []
 
 # How to use it
 
-Read these first to anchor on properties that are known and intentional. Then look at source for anything the file doesn't cover. condition text cites enforcement sites by symbol name; resolve against live source.
+Read these first to anchor on properties that are known and intentional. Then look at source for anything the file doesn't cover. `condition` text cites enforcement sites by symbol name; resolve against live source.
 
 ---
 

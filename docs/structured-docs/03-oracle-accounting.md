@@ -124,7 +124,7 @@ C.4 (if > 0):
   → Lido.internalizeExternalBadDebt(badDebt)             // EXT: moves badDebt shares external → internal
 ```
 
-In `_simulateOracleReport` the bad debt is folded as `postInternalShares += badDebt` and `postExternalShares = externalShares − badDebt` ("can't underflow by design"). Net: external shares shrink, internal shares grow by the same count, so internal-holder share rate **drops** — the vault loss is borne by stakers. The two calls must stay paired (VaultHub debit + Lido move) or the books desync — the socialize-vs-internalize double-settle surface. How `VaultHub` accrues bad debt: [`06`](./06-vaults.md#core-flows). **Sim/exec divergence:** the live `badDebtToInternalize()` (permissionless simulate twin) and the snapshotted `…ForLastRefSlot()` (on-chain) can differ — the daemon must simulate against the current ref-slot view.
+In `_simulateOracleReport` the bad debt is folded as `postInternalShares += badDebt` and `postExternalShares = externalShares − badDebt` ("can't underflow by design"). Net: external shares shrink, internal shares grow by the same count, so internal-holder share rate **drops** — the vault loss is borne by stakers. The two calls must stay paired (VaultHub debit + Lido move) or the books desync — the `decreaseInternalizedBadDebt` ↔ `internalizeExternalBadDebt` double-settle surface. How `VaultHub` accrues bad debt: [`06`](./06-vaults.md#core-flows). **Sim/exec divergence:** the live `badDebtToInternalize()` (permissionless simulate twin) and the snapshotted `…ForLastRefSlot()` (on-chain) can differ — the daemon must simulate against the current ref-slot view.
 
 ### 5. Burner — share-burn queue
 
