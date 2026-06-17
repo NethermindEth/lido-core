@@ -51,7 +51,7 @@ Three permissioning systems are layered: (1) **Aragon ACL** on legacy 0.4.24 (`L
 | `Burner` | `REQUEST_BURN_SHARES_ROLE` | **`Accounting` + `CSM_ACCOUNTING` only** | Pre-approved share burns |
 | `Burner` | `REQUEST_BURN_MY_STETH_ROLE` | Agent / Insurance fund | Voluntary burn |
 | `Burner` | `DEFAULT_ADMIN_ROLE`, proxy admin | Agent, governed by DG | Recovery fns are permissionless (no role) |
-| `VaultHub` | `VALIDATOR_EXIT_ROLE` / `BAD_DEBT_MASTER_ROLE` | `VAULTS_ADAPTER` | full vault set in [`06`](./06-vaults.md) |
+| `VaultHub` | `VALIDATOR_EXIT_ROLE` / `BAD_DEBT_MASTER_ROLE` | `VAULTS_ADAPTER` | full vault set in [`06`](./06-vaults.md); socialize needs **no acceptor-owner consent** — can leave a healthy same-operator acceptor force-rebalanceable or abort its disconnect |
 | `VaultHub` | `REDEMPTION_MASTER_ROLE` / `VAULT_MASTER_ROLE` | unassigned (zero holders) | asserted empty in V3 |
 | `VaultHub`/`PredepositGuarantee` | `PAUSE_ROLE` / `RESUME_ROLE` | GateSeal + ResealManager / ResealManager | Emergency halt |
 | `OperatorGrid` | `REGISTRY_ROLE` | `EVM_SCRIPT_EXECUTOR` + `VAULTS_ADAPTER` | Easy Track + adapter |

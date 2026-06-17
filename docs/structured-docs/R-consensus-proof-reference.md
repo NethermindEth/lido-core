@@ -135,7 +135,7 @@ instead proves the old block root through the beacon state's `historical_summari
 `targetSlot` and `recentSlot`, compute `summaryIndex = (targetSlot − CAPELLA_SLOT) / SLOTS_PER_HISTORICAL_ROOT` and
 `rootIndex = targetSlot % SLOTS_PER_HISTORICAL_ROOT`, then `verifyProof` the old header against the recent block's
 `stateRoot` using `_getHistoricalBlockRootGI` (`GI_FIRST_HISTORICAL_SUMMARY_*.shr(summaryIndex)` then
-`.concat(GI_FIRST_BLOCK_ROOT_IN_SUMMARY_*).shr(rootIndex)`, each PREV/CURR-selected by slot). The recent anchor (a
+`.concat(GI_FIRST_BLOCK_ROOT_IN_SUMMARY_*).shr(rootIndex)`, the summary anchor PREV/CURR-selected by `recentSlot`, the block-root anchor by the summary's creation slot). The recent anchor (a
 still-buffered block) is the EIP-4788 root; everything else hangs off it by SSZ branches.
 
 ## Distilled external specs
@@ -147,7 +147,9 @@ Lido-relevant facts only.
   named constant in source — the source comment is "withdrawal amount = 0"). Submitted to predeploy `…007002`
   (`WITHDRAWAL_REQUEST` in both `WithdrawalVaultEIP7002` and `common/lib/TriggerableWithdrawals`). Fee is dynamic
   (EIP-1559-style on a queue-excess counter): fee getter is `predeploy.staticcall("")` returning a `uint256`;
-  the wrapper sends `call{value: fee}(request)` and refunds `msg.value − totalFee`. The system contract uses the
+  the wrapper sends `call{value: fee}(request)` per pubkey and requires `msg.value == totalFee` exactly
+  (`WithdrawalVaultEIP7002._checkFee`, revert `IncorrectFee`); the `msg.value − totalFee` refund is caller-side
+  (`TriggerableWithdrawalsGateway`/`StakingVault`), not in the EIP-7002 encoder. The system contract uses the
   caller (`msg.sender`) as the withdrawal-request `source_address`; `process_withdrawal_request` then requires
   `has_execution_withdrawal_credential` (`0x01` or `0x02`) and `withdrawal_credentials[12:] == source_address`, so the
   calling contract must hold the validator's execution-withdrawal credential — for a V3 `StakingVault`, its `0x02` WC.
@@ -155,7 +157,7 @@ Lido-relevant facts only.
   deployment blob, 30M system-call gas, EIP-7685 wrapping.)*
 - **EIP-7251 (consolidation).** Predeploy `…007251` (`CONSOLIDATION_REQUEST_PREDEPLOY_ADDRESS`). Calldata = **96
   bytes** = source pubkey ‖ target pubkey (`2 × 48`). Merges a source validator into a `0x02` (compounding) target;
-  switching `0x01 → 0x02` raises a validator's effective-balance cap. Same staticcall("") fee/refund shape as 7002.
+  switching `0x01 → 0x02` raises a validator's effective-balance cap. Same staticcall("") fee-getter shape as 7002.
   In-repo encoder is `ValidatorConsolidationRequests` (Vault CLI; holds no funds, mutates no state).
 - **EIP-4788 (beacon roots).** `BEACON_ROOTS` predeploy `0x000F3df6D732807Ef1319fB7B8bB8522d0Beac02`
   (identical constant in `CLProofVerifier` and `ValidatorExitDelayVerifier`). Timestamp-keyed **8192-slot ring
@@ -164,8 +166,9 @@ Lido-relevant facts only.
 - **Withdrawal-credential types.** `0x00` BLS (legacy, not used for new Lido validators); `0x01` Eth1-address
   (`0x01 ‖ 11 zero bytes ‖ 20-byte addr`, Core Pool → Lido `WithdrawalVault`, CL-spec cap MIN_ACTIVATION_BALANCE =
   32 ETH); `0x02` compounding (Electra, V3 `StakingVault` = `0x02 ‖ 11 zero bytes ‖ address(this)`, CL-spec cap
-  MAX_EFFECTIVE_BALANCE_ELECTRA = 2048 ETH, required for 7251). These caps are CL-consensus-spec terms, not in-repo
-  constants (only `MIN_ACTIVATION_BALANCE` appears, in a `Dashboard` doc-comment). **Invariant:** a validator never
+  MAX_EFFECTIVE_BALANCE_ELECTRA = 2048 ETH, required for 7251). Neither cap is a *named* in-repo constant:
+  `MIN_ACTIVATION_BALANCE` appears only in a `Dashboard` doc-comment, and `2048` only as the `2048 ether` operand
+  of `PredepositGuarantee.MAX_TOPUP_AMOUNT` (= 2048 − 31 − 1 = 2016 ETH top-up headroom, not the cap itself). **Invariant:** a validator never
   requested-and-initiated to exit has `exitEpoch == FAR_FUTURE_EPOCH` (`type(uint64).max`) — the property VEDV
   proves (the leaf is reconstructed with `exitEpoch` hard-coded to `FAR_FUTURE_EPOCH`). On exit, `withdrawableEpoch
   = exitEpoch + MIN_VALIDATOR_WITHDRAWABILITY_DELAY` (a fixed CL-spec offset).
@@ -174,7 +177,7 @@ Lido-relevant facts only.
   activation.
 
 *(Out of in-repo scope: Pectra committee/attestation EIP-7549, sync-committee, blob EIP-7691,
-proposer-index, `process_slashings`, full `BeaconState`/`BeaconBlockBody` dumps, engine APIs. The CL request-processing model — `process_withdrawal_request` / `process_consolidation_request` /
+proposer-selection (`get_beacon_proposer_index`), `process_slashings`, full `BeaconState`/`BeaconBlockBody` dumps, engine APIs. The CL request-processing model — `process_withdrawal_request` / `process_consolidation_request` /
 `process_deposit_request` and the churn/queue/sweep mechanics — is detailed below in
 [Consensus-layer request processing](#consensus-layer-request-processing-the-seam).)*
 
@@ -248,8 +251,9 @@ The request carries `source_pubkey ‖ target_pubkey`. There are two distinct pa
 ### EIP-6110 — `process_deposit_request` + `process_pending_deposits`
 
 `process_deposit_request` does not activate a validator; it sets `deposit_requests_start_index` (if unset) and
-appends a `PendingDeposit` (with `slot = state.slot`). Activation happens later in `process_pending_deposits`,
-which is finality-gated (a deposit past the finalized slot stops processing), bounded by
+appends a `PendingDeposit` (with `slot = state.slot`). The deposit is consumed later by `process_pending_deposits`
+(which credits balance / registers the validator with `activation_epoch = FAR_FUTURE_EPOCH`; activation itself is a
+further `process_registry_updates` step), finality-gated (a deposit past the finalized slot stops processing), bounded by
 `MAX_PENDING_DEPOSITS_PER_EPOCH` per epoch, and churn-limited (`available_for_processing = deposit_balance_to_consume
 + get_activation_exit_churn_limit`; a deposit that does not fit the remaining churn stops processing for the epoch).
 A deposit whose validator is already exiting is postponed past its `withdrawable_epoch`; one whose validator is
