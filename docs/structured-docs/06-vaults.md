@@ -252,6 +252,8 @@ LazyOracle ← AccountingOracle (updateReportData) / anyone+proof (updateVaultDa
 OperatorGrid ← REGISTRY_ROLE / owner+operator (dual-confirm) / VaultHub → VaultHub.updateConnection
 ```
 
+> **Invariants:** see [`vault-invariants.md`](./vault-invariants.md) — supplementary, not the full set; derive others from source.
+
 ## Key constants
 
 | Constant | Value | Purpose |

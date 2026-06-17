@@ -1,9 +1,9 @@
 ---
 doc: "vault-invariants"
-title: Invariants — V3 stVaults
+title: V3 stVaults Invariants
 contracts: []
 prereqs: ["AGENTS-2"]
-see_also: ["00", "07"]
+see_also: ["00", "06", "07"]
 ssot_for: []
 ---
 # Invariants — Supplementary Properties (V3 stVaults)
@@ -37,11 +37,11 @@ Read these to anchor on known objective properties, then read source for anythin
 
 # Sections
 
-1. Liability, value & withdraw cap — `VaultHub`, `StakingVault`.
-2. Bad debt & Accounting seam — `VaultHub` ↔ `Accounting`/`Lido`.
-3. System-wide solvency conservation — `VaultHub` ↔ `Lido`/`OperatorGrid`.
+1. Liability, value and withdraw cap — VaultHub, StakingVault.
+2. Bad debt and Accounting seam — VaultHub, Accounting, Lido.
+3. System-wide solvency conservation — VaultHub, Lido, OperatorGrid.
 
-## 1. Liability, value & withdraw cap
+## 1. Liability, value and withdraw cap
 ```json
 [
   {
@@ -101,7 +101,7 @@ Read these to anchor on known objective properties, then read source for anythin
 ]
 ```
 
-## 2. Bad debt & Accounting seam
+## 2. Bad debt and Accounting seam
 ```json
 [
   {
@@ -119,7 +119,7 @@ Read these to anchor on known objective properties, then read source for anythin
   {
     "description": "Internalized bad debt accrues to a refSlot-cached counter, decremented only by Accounting.",
     "function": "internalizeBadDebt / decreaseInternalizedBadDebt",
-    "condition": "internalizeBadDebt [BAD_DEBT_MASTER_ROLE] does _decreaseLiability then badDebtToInternalize += n (RefSlotCache.withValueIncrease). decreaseInternalizedBadDebt is gated to LIDO_LOCATOR.accounting(). badDebtToInternalize() returns the live value; badDebtToInternalizeForLastRefSlot() returns the value cached at the last refSlot.",
+    "condition": "internalizeBadDebt [BAD_DEBT_MASTER_ROLE, fresh report] does _decreaseLiability then badDebtToInternalize += n (RefSlotCache.withValueIncrease). decreaseInternalizedBadDebt is gated to LIDO_LOCATOR.accounting(). badDebtToInternalize() returns the live value; badDebtToInternalizeForLastRefSlot() returns the value cached at the last refSlot.",
     "path": "contracts/0.8.25/vaults/VaultHub.sol"
   },
   {
@@ -137,7 +137,7 @@ Read these to anchor on known objective properties, then read source for anythin
   {
     "description": "Global solvency identity: every external stETH share is backed by a vault liability or the internalized bad-debt counter.",
     "function": "Contract-wide (mintShares / burnShares / _rebalance / socializeBadDebt / internalizeBadDebt / decreaseInternalizedBadDebt)",
-    "condition": "total core external stETH shares minted via vaults == SUM over connected vaults of record.liabilityShares + badDebtToInternalize.value. mint/burn move core supply (LIDO.mintExternalShares/burnExternalShares) and a vault's liabilityShares together; rebalance reduces both; socialize relocates liability between vaults (supply unchanged); internalize moves liability into badDebtToInternalize (supply unchanged) until Accounting burns it and calls decreaseInternalizedBadDebt. No reachable state leaves stETH unbacked AND unaccounted.",
+    "condition": "total core external stETH shares minted via vaults == SUM over connected vaults of record.liabilityShares + badDebtToInternalize.value. mint/burn move core supply (LIDO.mintExternalShares/burnExternalShares) and a vault's liabilityShares together; rebalance reduces both; socialize relocates liability between vaults (supply unchanged); internalize moves liability into badDebtToInternalize (supply unchanged) until Accounting settles it during the report — calling decreaseInternalizedBadDebt (clearing the counter) and LIDO.internalizeExternalBadDebt, which reattributes those external shares to internal (total share supply unchanged; the loss is socialized via a share-rate drop). No reachable state leaves stETH unbacked AND unaccounted.",
     "path": "contracts/0.8.25/vaults/VaultHub.sol"
   }
 ]
