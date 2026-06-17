@@ -75,7 +75,7 @@ Pausing VEBO blocks `submitReportData`/`submitExitRequestsData` (every `whenResu
 
 **VEBO init / version gate.** `initialize(admin, consensus, consensusVersion, lastProcessingRefSlot, maxValidatorsPerRequest, maxExitRequestsLimit, exitsPerFrame, frameDurationInSec)` grants `DEFAULT_ADMIN_ROLE` to `admin` (role-admin for all VEB/VEBO roles), pauses infinitely, wires consensus and v2 rate params. `finalizeUpgrade_v2(...)` is the one-shot v1→v2 migrator; both route through `_updateContractVersion(2)` so each runs at most once.
 
-**Exit-rate limit.** The sliding-window limit VEB consumes (`setExitRequestLimit`/`setMaxValidatorsPerReport`) and the one TWG consumes are each the packed `ExitLimitUtils` lib documented in [`04`](./04-withdrawals.md#internal-mechanics), applied to that contract's own slot under its own manager role — TWG's and VEB's budgets are independent; `type(uint256).max` = no throttle when unset.
+**Exit-rate limit.** The sliding-window limit VEB consumes (`setExitRequestLimit`) and the one TWG consumes are each the packed `ExitLimitUtils` lib documented in [`04`](./04-withdrawals.md#internal-mechanics), applied to that contract's own slot under its own manager role — TWG's and VEB's budgets are independent; `type(uint256).max` = no throttle when unset. Separately, `setMaxValidatorsPerReport` requires a non-zero value (`ZeroArgument`) and caps each `submitExitRequestsData` payload — `requestsCount > maxValidatorsPerReport` ⇒ `TooManyExitRequestsInReport` (a per-report count cap, distinct from the sliding-window limit above).
 
 ## External interactions
 ```text

@@ -162,7 +162,7 @@ anyone → LazyOracle.updateVaultData(vault, totalValue, cumulativeLidoFees, lia
   → else fold in immediately (negative jumps always apply at once — slashing is real)
   → VaultHub.applyVaultReport(vault, ...)   // updates report, cumulativeLidoFees, minimalReserve, maxLiabilityShares (guarded)
 VaultHub → LazyOracle.removeVaultQuarantine(vault)   [msg.sender==locator.vaultHub()]   // cleared on disconnect finalization (inside VaultHub.applyVaultReport)
-UPDATE_SANITY_PARAMS_ROLE → updateSanityParams(quarantinePeriod ≤ MAX_QUARANTINE_PERIOD=30d, maxRewardRatioBP, maxLidoFeeRatePerSecond)
+UPDATE_SANITY_PARAMS_ROLE → updateSanityParams(quarantinePeriod ≤ MAX_QUARANTINE_PERIOD=30d, maxRewardRatioBP ≤ MAX_REWARD_RATIO=type(uint16).max, maxLidoFeeRatePerSecond ≤ MAX_LIDO_FEE_RATE_PER_SECOND=10 ETH/s)
 ```
 
 Quarantine bounds a malicious/buggy reporter to "any positive jump, but wait the `quarantinePeriod` delay before it counts." `fund()` increases are tracked via `inOutDelta`, not the report, so they bypass quarantine. The threshold is relative to vault value, so the same absolute off-book gain may be normal for a large vault but quarantined for a small one.
@@ -178,7 +178,7 @@ owner|operator → changeTier(vault, tierId, shareLimit) | syncTier(vault) | upd
 VaultHub → onMintedShares (VaultInJail / TierLimitExceeded / GroupLimitExceeded) | onBurnedShares | resetVaultTier (→ DEFAULT_TIER_ID=0)   [caller==vaultHub]
 ```
 
-`effectiveShareLimit(vault) = min(connection shareLimit, tier remaining + liability, group remaining + liability)`. Jailed vaults cannot mint (burn/rebalance still work). Tier params bound each vault's overcollateralization; the owner+operator dual-confirm here is *addresses-as-confirmers*, distinct from the role-based `Permissions` confirm in flow 10.
+`effectiveShareLimit(vault) = min(connection shareLimit, tier remaining + liability, group remaining + liability)`. Jailed vaults cannot mint (burn/rebalance still work). `OperatorGrid._validateParams` (every tier — default at `initialize`, plus `registerTiers`/`alterTiers`) requires `reserveRatioBP ∈ [1, 9999]` (`MAX_RESERVE_RATIO_BP`, ≤99.99%), `forcedRebalanceThresholdBP` non-zero with `+10 bp < reserveRatioBP` (`ForcedRebalanceThresholdTooHigh`), and `infra/liquidity/reservationFeeBP ≤ MAX_FEE_BP = type(uint16).max` (≈655% — tier fees are **not** capped at 100%). Separately, `VaultHub._requireSaneShareLimit` (connect / `updateConnection`) caps `shareLimit ≤ getTotalShares() × MAX_RELATIVE_SHARE_LIMIT_BP / TOTAL_BASIS_POINTS` — a TVL-relative ceiling (immutable, non-zero, `≤ 10000`; `ShareLimitTooHigh`). Tier params bound each vault's overcollateralization; the owner+operator dual-confirm here is *addresses-as-confirmers*, distinct from the role-based `Permissions` confirm in flow 10.
 
 ### 9. Bad debt (load-bearing seam to Accounting)
 
@@ -227,6 +227,7 @@ Confirm spine `Dashboard → NodeOperatorFee → Permissions → AccessControlCo
 - **PinnedBeaconProxy.** `isOssified() = getPinnedImplementation() != address(0)`; `_implementation()` returns the pinned impl if set, else the beacon's. `PINNED_BEACON_STORAGE_SLOT = keccak256("stakingVault.proxy.pinnedBeacon") − 1`. All vaults share one `UpgradeableBeacon` (`stakingVaultBeacon`, owner = Agent), so a single `UpgradeableBeacon.upgradeTo` re-points **every non-pinned vault at once**; `StakingVault.ossify()` (flow 12) pins a vault's current impl and opts it out.
 - **Cross-contract vault-keyed state on disconnect.** VaultHub `connections`/`records` cleared (`_deleteVault`); LazyOracle quarantine cleared (`removeVaultQuarantine`); OperatorGrid tier reset to `DEFAULT_TIER_ID` (liabilities must already be 0); **NodeOperatorFee** `feeRate` **preserved** but `settledGrowth` **force-set to `MAX_SANE_SETTLED_GROWTH`** in the same Dashboard proxy — so reconnect needs `correctSettledGrowth` when `feeRate>0`; **PDG** `pendingActivations`/status **not** force-cleared — reconnect re-checks `stagedBalance == pendingActivations * 31 ETH`.
 - **Share-rate dependence.** `locked`, `isVaultHealthy`, `healthShortfallShares`, `badDebtShares` all use live `getPooledEthBySharesRoundUp`/`getSharesByPooledEth`, so a Core-Pool share-rate move changes a vault's ETH-side collateralization with no vault write.
+- **Dashboard token handling.** wstETH moves via OZ `SafeERC20` (`safeTransfer`/`safeTransferFrom`, with `WSTETH.wrap`/`unwrap`); stETH is **never** SafeERC20-transferred — `Dashboard` wraps minted stETH immediately and otherwise uses `IStETH` share methods (`transferShares`/`transferSharesFrom`) and conversions (`getPooledEthBySharesRoundUp`), and never holds an stETH balance.
 
 ## External interactions
 
@@ -268,6 +269,8 @@ OperatorGrid ← REGISTRY_ROLE / owner+operator (dual-confirm) / VaultHub → Va
 | `ACTIVATION_DEPOSIT_AMOUNT` | 31 ETH | Top-up to complete a 32-ETH activation after the 1-ETH predeposit. |
 | `MAX_TOPUP_AMOUNT` | `2048 ETH − 31 − 1` | Per-validator top-up cap (EIP-7251 `0x02` compounding max effective balance = 2048 ETH). |
 | `MAX_QUARANTINE_PERIOD` | 30 days | Upper bound on LazyOracle quarantine. |
+| `MAX_REWARD_RATIO` / `MAX_LIDO_FEE_RATE_PER_SECOND` | `type(uint16).max` / 10 ETH/s | LazyOracle report-sanity caps (`updateSanityParams`, `UPDATE_SANITY_PARAMS_ROLE`). |
+| `MAX_RELATIVE_SHARE_LIMIT_BP` | ≤ 10000 (deploy-set immutable) | TVL-relative ceiling on a connection `shareLimit` (`VaultHub._requireSaneShareLimit`; `ShareLimitTooHigh`). |
 | `MIN_CONFIRM_EXPIRY` / `MAX_CONFIRM_EXPIRY` | 1 hour / 30 days | Confirm-window bounds (default 1 day); no `confirmExpiry` constant. |
 | `DEFAULT_TIER_ID` | 0 | Tier a vault resets to on disconnect. |
 | `WITHDRAWAL_REQUEST` | `0x…007002` | EIP-7002 vault exit/withdrawal predeploy (`TriggerableWithdrawals`). |
