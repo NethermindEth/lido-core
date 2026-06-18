@@ -93,7 +93,7 @@
     "eslint-plugin-simple-import-sort": "12.1.1",
     "ethereumjs-util": "7.1.5",
     "ethers": "6.14.4",
-    "glob": "11.1.0",
+    "glob": "12.0.0",
     "globals": "15.15.0",
     "hardhat": "2.26.1",
     "hardhat-contract-sizer": "2.10.0",
@@ -122,10 +122,10 @@
     "@aragon/id": "2.1.1",
     "@aragon/minime": "1.0.0",
     "@aragon/os": "4.4.0",
-    "@openzeppelin/contracts": "3.4.0",
+    "@openzeppelin/contracts": "4.9.6",
     "@openzeppelin/contracts-v4.4": "npm:@openzeppelin/contracts@4.4.1",
     "@openzeppelin/contracts-v5.2": "npm:@openzeppelin/contracts@5.2.0",
-    "openzeppelin-solidity": "2.0.0",
+    "openzeppelin-solidity": "3.4.2",
     "zod": "^4.0.13"
   }
 }
