@@ -135,7 +135,6 @@ Reward state machine: `onRewardsMinted` → `TransferredToModule`; `onExitedAndS
 - **StakingModule struct (packed).** `id (uint24)`, `stakingModuleFee/treasuryFee/stakeShareLimit/priorityExitShareThreshold (uint16)`, `status (uint8)`, `maxDepositsPerBlock/minDepositBlockDistance/lastDepositAt (uint64)`, plus `stakingModuleAddress`, `name`, `lastDepositBlock`, `exitedValidatorsCount`. The router's `exitedValidatorsCount` is the phase-1 aggregate and can legitimately differ from the module summary mid-frame.
 - **Shared (moduleId, nodeOperatorId) namespace.** One id space spans NOR (id=1), Simple DVT (id=2), CSM (id=3+). Core code that hardcodes `id == 1` or assumes NOR semantics breaks for other modules.
 - **NOR is Aragon ACL, not OZ.** Auth via `_auth(role)`/`canPerform`/`authP` (by operator id), distinct from `StakingRouter`'s OZ `AccessControlEnumerable`. `MAX_NODE_OPERATORS_COUNT = 200` bounds storage iteration. `reportValidatorExitDelay` dedupes by `keccak256(pubkey)` (idempotent), requires `eligibleToExitInSec ≥ exitDeadlineThreshold` and `proofSlotTimestamp - eligibleToExitInSec ≥ exitPenaltyCutoffTimestamp()` (the eligibility-start timestamp, not the proof slot itself, must be at/after the cutoff).
-- **Contract versions (mainnet).** `NodeOperatorsRegistry` is currently at v4 and `StakingRouter` at v3; both `finalizeUpgrade_vN` upgrades have already executed, so the exit-reporting surface described above is the live v4/v3 behavior.
 
 ## External interactions
 
