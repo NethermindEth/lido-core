@@ -159,8 +159,6 @@ receive() → revert DirectETHTransfer   // Burner rejects raw ETH
 
 Recovery cannot touch shares marked for burning (requested buckets subtracted) and only sends to `LOCATOR.treasury()`. **V3 migrate:** `migrate(oldBurner)` is `msg.sender == LIDO` only (`OnlyLidoCanMigrate`), gated on `isMigrationAllowed` (set at `initialize`), flips that flag false so it runs once; copies `totalCover/NonCoverSharesBurnt` and the requested buckets from the old Burner. `initialize(admin, isMigrationAllowed)` is one-time, grants `DEFAULT_ADMIN_ROLE`.
 
-**Deployment state (mainnet):** the live `Burner` is at v1 and `migrate(oldBurner)` has already executed, so `isMigrationAllowed` is now `false` and a second `migrate` reverts.
-
 ## Internal mechanics
 
 - **Share rate is internal-only** — every rate computation (`smoothenTokenRebase`, fees, `checkSimulatedShareRate`) uses `totalPooledEther − externalEther` over `totalShares − externalShares`; the `1e27` `SHARE_RATE_PRECISION_E27` is *computation* precision, not token scaling (share-math SSOT: [`01`](./01-core-staking.md#core-flows)).

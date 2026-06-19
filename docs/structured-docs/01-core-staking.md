@@ -156,8 +156,6 @@ holder → approve / increaseAllowance / decreaseAllowance / permit         // N
 
 **Stuck-validators touchpoint.** `stuckValidatorsCount` is DEPRECATED protocol-wide; at the staking side the count is hardcoded to 0 and oracle extra-data `itemType=1` reverts `DeprecatedExtraDataType`. Full detail in [`02`](./02-staking-router-modules.md).
 
-**Contract version (mainnet).** `Lido` is currently at version 3 — `initialize` sets v3, and the v2→v3 path `finalizeUpgrade_v3` (already executed) also wired the initial `maxExternalRatioBP` that flow 7's `setMaxExternalRatioBP` adjusts at runtime.
-
 ## External interactions
 
 ```text
