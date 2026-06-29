@@ -118,12 +118,16 @@ VaultHub → Lido.mintExternalShares(recipient, shares)
   → _decreaseStakingLimit(getPooledEthByShares(shares))   // mint consumes stake-limit like a submit
   → externalShares += shares; _mintShares(recipient, shares)   // recipient != stETH contract
 VaultHub → Lido.burnExternalShares(shares)                // allowed while staking PAUSED, blocked while STOPPED
+  → require(externalShares >= shares)                     // EXT_SHARES_TOO_SMALL
   → externalShares -= shares; _burnShares(msg.sender, shares)
   → if limit set and not paused: prevStakeLimit = currentLimit + stethAmount   // unbounded — may exceed maxStakeLimit and drain per-block; does NOT add ETH to buffer
 VaultHub → Lido.rebalanceExternalEtherToInternal(shares)  (payable)
+  → require(msg.value != 0)                                      // ZERO_VALUE
   → require(msg.value == getPooledEthBySharesRoundUp(shares))   // VALUE_SHARES_MISMATCH
+  → require(externalShares >= shares)                            // EXT_SHARES_TOO_SMALL
   → externalShares -= shares; bufferedEther += msg.value         // 1:1 pay-down of vault debt in ETH
 Accounting → Lido.internalizeExternalBadDebt(shares)      // (flow 5) NOT VaultHub-direct
+  → require(externalShares >= shares)                            // EXT_SHARES_TOO_SMALL
   → externalShares -= shares                                     // totalShares same, internalEther same
 External: VaultHub (mint/burn/rebalance); Accounting (bad-debt).
 ```

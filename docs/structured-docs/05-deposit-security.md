@@ -94,6 +94,7 @@ The `StakingRouter` target only **decreases** the cap — there is no path here 
 - **`blockhash` window:** `blockhash(blockNumber)` returns 0 for future or >256-block-old blocks, so both forward-dated and stale ATTEST/UNVET intents revert on the `blockHash` check.
 - **Owner knobs (`onlyOwner`):** `setOwner` (reverts `ZeroAddress` — owner cannot be renounced to 0), `setPauseIntentValidityPeriodBlocks` / `setMaxOperatorsPerUnvetting` (revert `ZeroParameter` on 0), `setGuardianQuorum`, `addGuardian` / `addGuardians` / `removeGuardian` (each re-sets quorum; remove is swap-pop), and `unpauseDeposits`. The resume function is `unpauseDeposits()` — it reverts `DepositsNotPaused` if not paused; `resumeDeposits()` does not exist.
 - **Quorum edge cases:** `setGuardianQuorum` may set `quorum` ABOVE `guardians.length` (explicitly permitted) — a soft kill-switch that blocks deposits without touching the pause flag. It may also shrink quorum, unilaterally loosening the gate. `quorum == 0` always fails flow 1 step 3.
+- **`canDeposit(stakingModuleId)` preflight (view):** DSM's own read-only aggregate gate — returns true only when `hasStakingModule(id)` AND deposits are not paused AND the module is active AND `quorum > 0` AND `_isMinDepositDistancePassed(id)` AND `Lido.canDeposit()`. This is the canonical on-chain preflight a depositor bot calls before assembling an ATTEST quorum; it is **distinct** from the wrapped `Lido.canDeposit()` (which only checks `!bunkerMode && !isStopped`).
 
 ## External interactions
 
@@ -103,6 +104,7 @@ DepositSecurityModule (boundary)
   <- any guardian    : pauseDeposits, unvetSigningKeys (via msg.sender)
   <- owner (gov)     : setOwner, setGuardianQuorum, add/removeGuardian(s),
                        setPauseIntentValidityPeriodBlocks, setMaxOperatorsPerUnvetting, unpauseDeposits
+  <- anyone (view)   : canDeposit(stakingModuleId)                         // DSM's own read-only deposit-gate preflight (≠ Lido.canDeposit)
   -> IDepositContract.get_deposit_root()                                   // ATTEST verification
   -> StakingRouter.getStakingModuleNonce / .getStakingModuleIsActive / .hasStakingModule /
      .getStakingModuleLastDepositBlock / .getStakingModuleMinDepositBlockDistance /
@@ -133,7 +135,7 @@ DSM has no role on `Lido` and no role on `StakingRouter` except `STAKING_MODULE_
 ## Source references
 
 **Live source:**
-- `0.8.9/DepositSecurityModule.sol` — owner/guardian model; `ATTEST`/`PAUSE`/`UNVET` prefixes; `depositBufferedEther` (check order) + `_verifyAttestSignatures`; `pauseDeposits` (idempotent return); `unpauseDeposits` (reverts `DepositsNotPaused`); `unvetSigningKeys`; `_isMinDepositDistancePassed`; guardian/quorum knobs.
+- `0.8.9/DepositSecurityModule.sol` — owner/guardian model; `ATTEST`/`PAUSE`/`UNVET` prefixes; `depositBufferedEther` (check order) + `_verifyAttestSignatures`; `pauseDeposits` (idempotent return); `unpauseDeposits` (reverts `DepositsNotPaused`); `unvetSigningKeys`; `_isMinDepositDistancePassed`; `canDeposit(stakingModuleId)` aggregate preflight view; guardian/quorum knobs.
 - `0.8.9/BeaconChainDepositor.sol` — `_makeBeaconChainDeposits32ETH`, `_computeDepositDataRoot`, `DEPOSIT_SIZE`, `DEPOSIT_SIZE_IN_GWEI_LE64` (reviewed via `StakingRouter`; see [`02`](./02-staking-router-modules.md)).
 - `0.8.9/StakingRouter.sol` — `STAKING_MODULE_UNVETTING_ROLE` and `decreaseStakingModuleVettedKeysCountByNodeOperator` (UNVET target).
 

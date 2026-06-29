@@ -86,7 +86,7 @@ user -> WithdrawalQueueERC721.requestWithdrawals(amounts, owner)   // lock stETH
 user -> WithdrawalQueueERC721.claimWithdrawal(requestId)           // pay ETH @ finalization rate
    ETH source: WithdrawalVault (CL withdrawals via 0x01/0x02 creds, pulled in flow 2)
 ```
-Requests are not paid in id order on demand; each report advances `lastFinalizedRequestId` over a **contiguous** batch (≤ `MAX_BATCHES_LENGTH = 36` per finalize), locking a precise ETH amount at a checkpointed share rate. A holder claims only once the request id is finalized. The on-report finalize chain and the bunker-mode relay (`onOracleReport` never finalizes) are detailed in [`04`](./04-withdrawals.md#core-flows).
+Requests are not paid in id order on demand; each report advances `lastFinalizedRequestId` over a **contiguous** range, locking a precise ETH amount at checkpointed share rate(s); the on-report batch calculation packs that range into at most `MAX_BATCHES_LENGTH = 36` distinct-rate segments (**not** a 36-request cap — one segment is extended in place over unboundedly many requests). A holder claims only once the request id is finalized. The on-report finalize chain and the bunker-mode relay (`onOracleReport` never finalizes) are detailed in [`04`](./04-withdrawals.md#core-flows).
 
 ### 4. Vault mint and burn (V3 stVaults)
 

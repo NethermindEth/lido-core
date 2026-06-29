@@ -73,7 +73,7 @@ match the CL exactly:
 activationEpoch, exitEpoch, withdrawableEpoch)`; `BeaconBlockHeader` is `(slot, proposerIndex, parentRoot,
 stateRoot, bodyRoot)`. VEDV calls the full `hashTreeRoot(Validator)` (with `exitEpoch` pinned to `FAR_FUTURE_EPOCH`)
 and `hashTreeRoot(BeaconBlockHeader)`. PDG (`CLProofVerifier`) does NOT merkleize the whole `Validator`: it proves
-the `(pubkey, withdrawalCredentials)` parent subtree node via `BLS12_381.sha256Pair(pubkeyRoot, wc)` and binds that
+the `(pubkey, withdrawalCredentials)` parent subtree node via `BLS12_381.sha256Pair(BLS12_381.pubkeyRoot(pubkey), wc)` and binds that
 deeper with a concatenated GIndex (flow 4).
 
 ### 3. GIndex navigation and the fork-pivot
@@ -109,7 +109,7 @@ PDG binds it inside one combined-GIndex proof.
 
 ```text
 shared step 0: root = BEACON_ROOTS.staticcall(abi.encode(timestamp))   // EXT: 0x000F3df6D732807Ef1319fB7B8bB8522d0Beac02
-                 -> revert RootNotFound if empty (slot outside the 8192-slot ring buffer)
+                 -> revert RootNotFound if empty (slot outside the 8191-slot ring buffer)
 
 VEDV (ValidatorExitDelayVerifier):
   1. require root == header.hashTreeRoot()                       // _verifyBeaconBlockRoot: equality, NOT verifyProof
@@ -118,7 +118,7 @@ VEDV (ValidatorExitDelayVerifier):
                      _getValidatorGI(validatorIndex, header.slot))
 
 PDG (CLProofVerifier):
-  1. leaf = sha256Pair(pubkeyRoot(pubkey), withdrawalCredentials) // parent(pubkey, wc) subtree node
+  1. leaf = BLS12_381.sha256Pair(BLS12_381.pubkeyRoot(pubkey), withdrawalCredentials) // parent(pubkey, wc) subtree node
   2. SSZ.verifyProof(proof, root, leaf,                           // ONE proof straight to the beacon root
                      concat(GI_STATE_ROOT, concat(_getValidatorGI(idx, slot), GI_PUBKEY_WC_PARENT)))
 External: BEACON_ROOTS (0x..0Beac02) staticcall + SHA-256 (0x02). View-only.
@@ -130,7 +130,7 @@ proven leaf). Before the proven `slot` selects the PREV/CURR fork GIndex (the `P
 `SLOT_PROPOSER_PARENT_PROOF_OFFSET`, revert `InvalidSlot`) — blocking a cross-slot proof replay that would let a
 caller pick a favorable fork GIndex. This `_verifySlot` step is PDG-only; VEDV shares the `PIVOT_SLOT` fork-GIndex
 selection (`_getValidatorGI`) but instead pins `slot`/`proposerIndex` via full-header `hashTreeRoot` equality
-(`_verifyBeaconBlockRoot`), so it neither imports `CLProofVerifier` nor calls `_verifySlot`. For slots **older than the 8192-slot buffer**, step 0 cannot resolve the timestamp; the verifier
+(`_verifyBeaconBlockRoot`), so it neither imports `CLProofVerifier` nor calls `_verifySlot`. For slots **older than the 8191-slot buffer**, step 0 cannot resolve the timestamp; the verifier
 instead proves the old block root through the beacon state's `historical_summaries` accumulator (Capella+): with
 `targetSlot` and `recentSlot`, compute `summaryIndex = (targetSlot − CAPELLA_SLOT) / SLOTS_PER_HISTORICAL_ROOT` and
 `rootIndex = targetSlot % SLOTS_PER_HISTORICAL_ROOT`, then `verifyProof` the old header against the recent block's
@@ -160,8 +160,8 @@ Lido-relevant facts only.
   switching `0x01 → 0x02` raises a validator's effective-balance cap. Same staticcall("") fee-getter shape as 7002.
   In-repo encoder is `ValidatorConsolidationRequests` (Vault CLI; holds no funds, mutates no state).
 - **EIP-4788 (beacon roots).** `BEACON_ROOTS` predeploy `0x000F3df6D732807Ef1319fB7B8bB8522d0Beac02`
-  (identical constant in `CLProofVerifier` and `ValidatorExitDelayVerifier`). Timestamp-keyed **8192-slot ring
-  buffer** of beacon block roots; `staticcall(abi.encode(timestamp))` returns the root or empty. Slots older than
+  (identical constant in `CLProofVerifier` and `ValidatorExitDelayVerifier`). Timestamp-keyed **8191-slot ring
+  buffer** (`HISTORY_BUFFER_LENGTH`, prime by design) of beacon block roots; `staticcall(abi.encode(timestamp))` returns the root or empty. Slots older than
   the buffer use the `historical_summaries` fallback (flow 4).
 - **Withdrawal-credential types.** `0x00` BLS (legacy, not used for new Lido validators); `0x01` Eth1-address
   (`0x01 ‖ 11 zero bytes ‖ 20-byte addr`, Core Pool → Lido `WithdrawalVault`, CL-spec cap MIN_ACTIVATION_BALANCE =
@@ -288,14 +288,14 @@ the 7002 full-exit path treats the same condition as a silent skip. The VEDV inv
 | `FAR_FUTURE_EPOCH` | `type(uint64).max` | not-exiting sentinel (VEDV invariant; `FAR_FUTURE_EPOCH` in `ValidatorExitDelayVerifier`). |
 | MIN_ACTIVATION_BALANCE (CL-spec term, not an in-repo constant) | 32 ETH | 0x01 cap / min activation balance. |
 | MAX_EFFECTIVE_BALANCE_ELECTRA (CL-spec term, not an in-repo constant) | 2048 ETH | 0x02 compounding cap. |
-| EIP-4788 buffer | 8192 slots | beacon-root ring-buffer depth; older slots use `historical_summaries`. |
+| EIP-4788 buffer | 8191 slots (`HISTORY_BUFFER_LENGTH`, prime by design) | beacon-root ring-buffer depth (~1 day); older slots use `historical_summaries`. |
 | WC prefixes | `0x00` / `0x01` / `0x02` | BLS / Eth1-address / compounding. |
 | GIndex packing | `(gI << 8) \| pow` | `index = bytes32 >> 8`, `pow = uint8(bytes32)`, `width = 1 << pow`. |
 | `FULL_EXIT_REQUEST_AMOUNT` (CL-spec term, not an in-repo constant) | 0 | EIP-7002 full-exit sentinel `amount`; the in-repo encoder has no named constant (see the "EIP-7002 full-exit amount" row). |
 | `COMPOUNDING_WITHDRAWAL_PREFIX` (CL-spec term, not an in-repo constant) | `0x02` | WC prefix `has_compounding_withdrawal_credential` matches; the 7251 switch/consolidation target prefix. |
 | `PENDING_PARTIAL_WITHDRAWALS_LIMIT` (CL-spec term, not an in-repo constant) | `2**27` | partial-withdrawal queue cap; once full, only full exits process (7002). |
 | `PENDING_CONSOLIDATIONS_LIMIT` (CL-spec term, not an in-repo constant) | `2**18` | consolidation queue cap; once full, consolidations skip (7251). |
-| `SHARD_COMMITTEE_PERIOD` (CL-spec term, not an in-repo constant) | 256 epochs | min active age before an exit/consolidation can be initiated. |
+| `SHARD_COMMITTEE_PERIOD` (CL-spec term; in-repo as the VEDV immutable `SHARD_COMMITTEE_PERIOD_IN_SECONDS`, denominated in seconds not epochs) | 256 epochs | min active age before an exit/consolidation can be initiated. |
 | `MIN_VALIDATOR_WITHDRAWABILITY_DELAY` (CL-spec term, not an in-repo constant) | 256 epochs | `withdrawable_epoch − exit_epoch` offset applied on exit. |
 
 ## Source references

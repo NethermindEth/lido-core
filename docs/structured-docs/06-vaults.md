@@ -112,7 +112,7 @@ The unhealthy state is the authorization — no role gate. `_obligationsShares =
 ```text
 VaultHub.requestValidatorExit(vault, pubkeys) [owner] → StakingVault.requestValidatorExit → emits events only (off-chain operators honor)
 VaultHub.triggerValidatorWithdrawals(vault, pubkeys, amountsInGwei, refundRecipient) [payable, owner]
-  → if any partial (amount>0): fresh report; if obligationsShortfall>0 ∧ minPartial*1e9 < shortfall ⇒ PartialValidatorWithdrawalNotAllowed
+  → if any partial (amount>0): if isVaultInJail(vault) ⇒ PartialValidatorWithdrawalNotAllowed; fresh report; if obligationsShortfall>0 ⇒ PartialValidatorWithdrawalNotAllowed
   → StakingVault.triggerValidatorWithdrawals [onlyOwner=VaultHub, payable]
       → TriggerableWithdrawals.add{Full,}WithdrawalRequests → WITHDRAWAL_REQUEST predeploy   // EXT: EIP-7002
 VaultHub.forceValidatorExit(vault, pubkeys, refundRecipient) [payable, VALIDATOR_EXIT_ROLE, fresh report]
@@ -121,7 +121,7 @@ VaultHub.forceValidatorExit(vault, pubkeys, refundRecipient) [payable, VALIDATOR
 StakingVault.ejectValidators(pubkeys, refundRecipient) [payable, msg.sender==nodeOperator] → TriggerableWithdrawals (full) — operator-side force-exit
 ```
 
-Force-exit routes **directly** through `StakingVault → TriggerableWithdrawals → WITHDRAWAL_REQUEST` predeploy — **not** through `TriggerableWithdrawalsGateway` (the Core-Pool path in [04](./04-withdrawals.md#core-flows)). Partial withdrawals are blocked while an obligations shortfall is uncovered, so an owner cannot clog the CL queue by front-running the forced full exits needed to rebalance. CL processing of the emitted EIP-7002 full/partial requests — the skip/cap/queue ladder `process_withdrawal_request` applies — is in [`R`](./R-consensus-proof-reference.md#consensus-layer-request-processing-the-seam).
+Force-exit routes **directly** through `StakingVault → TriggerableWithdrawals → WITHDRAWAL_REQUEST` predeploy — **not** through `TriggerableWithdrawalsGateway` (the Core-Pool path in [04](./04-withdrawals.md#core-flows)). Partial withdrawals are blocked while any obligations shortfall is uncovered — and entirely for jailed vaults — so an owner cannot clog the CL queue by front-running the forced full exits needed to rebalance. CL processing of the emitted EIP-7002 full/partial requests — the skip/cap/queue ladder `process_withdrawal_request` applies — is in [`R`](./R-consensus-proof-reference.md#consensus-layer-request-processing-the-seam).
 
 ### 5. PDG state machine (load-bearing)
 
@@ -156,7 +156,7 @@ Bond plumbing (all `PredepositGuarantee`): `topUpNodeOperatorBalance(nodeOperato
 AccountingOracle → LazyOracle.updateReportData(timestamp, refSlot, treeRoot, cid)   [msg.sender==locator.accountingOracle(), NO role]
 anyone → LazyOracle.updateVaultData(vault, totalValue, cumulativeLidoFees, liabilityShares, maxLiabilityShares, slashingReserve, proof)
   → MerkleProof.verify(proof, treeRoot, leaf) else InvalidProof    // authenticity is the proof, not the caller
-  → sanity: timestamp strictly increases; maxLiabilityShares ∈ [liabilityShares, record.maxLiabilityShares];
+  → sanity: timestamp strictly increases; maxLiabilityShares ≥ liabilityShares else InvalidMaxLiabilityShares (no upper bound — may exceed record.maxLiabilityShares);
             cumulativeLidoFees non-decreasing, Δ ≤ maxLidoFeeRatePerSecond*elapsed; totalValue ≤ uint96 max; no inOutDelta underflow
   → if reportedTotalValue > onchainRefSlotValue * (10000 + maxRewardRatioBP)/10000 ⇒ QUARANTINE (positive jumps only; flat %, NOT time-scaled)
   → else fold in immediately (negative jumps always apply at once — slashing is real)
