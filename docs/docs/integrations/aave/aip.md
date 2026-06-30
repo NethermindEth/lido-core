@@ -1,7 +1,7 @@
 # AIP
 
-| title                | status   | author              | shortDescription                                         | discussion                                                        | created    |
-| -------------------- | -------- | ------------------- | -------------------------------------------------------- | ----------------------------------------------------------------- | ---------- |
+| title                | status   | author              | shortDescription                                         | discussion                                                                                               | created    |
+| -------------------- | -------- | ------------------- | -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | ---------- |
 | Add stETH to AAVE v2 | Proposed | @jbeezy @grstepanov | AAVE governance proposal to enable stETH as a base token | [arc-add-support-for-steth-lido/5793](https://governance.aave.com/t/arc-add-support-for-steth-lido/5793) | 2022-04-02 |
 
 ### Simple Summary
@@ -12,15 +12,15 @@ We propose listing stETH to AAVE v2 market. This would allow users to borrow aga
 ### References
 
 - Website: [lido.fi](https://lido.fi/)
-- [Document portal](https://docs.lido.fi/)
-- [Source code for the system(s) that interact with the proposed token](https://github.com/lidofinance/lido-dao/blob/master/contracts/0.4.24/Lido.sol)
+- [Document portal](/)
+- [Source code for the system(s) that interact with the proposed token](https://github.com/lidofinance/core/blob/v3.0.2/contracts/0.4.24/Lido.sol)
 - [Ethereum addresses contracts](/deployed-contracts)
 - [ChainLink Oracle](https://etherscan.io/address/0x86392dC19c0b719886221c78AB11eb8Cf5c52812)
 - [Audits](https://github.com/lidofinance/audits)
 - Community
   - [Governance forum](https://research.lido.fi/)
-  - [Twitter](https://twitter.com/lidofinance)
-  - [Discord](https://discord.gg/vgdPfhZ)
+  - [X/Twitter](https://x.com/lidofinance)
+  - [Discord](https://discord.com/invite/lido)
   - [Telegram](https://t.me/lidofinance)
   - [Reddit](https://www.reddit.com/r/LidoFinance)
 
@@ -135,8 +135,8 @@ Volume (24h): $5,7M
 
 9. **Social channels data**
 
-[Discord](https://discord.gg/vgdPfhZ) - 7400 members
-[Twitter](https://twitter.com/LidoFinance) - 60K followers
+[Discord](https://discord.com/invite/lido) - 7400 members
+[X/Twitter](https://x.com/LidoFinance) - 60K followers
 [GitHub](https://github.com/lidofinance) - Active and managed
 
 10. **Contracts date of deployments, number of transactions, number of holders for tokens**
@@ -171,7 +171,7 @@ The current implementation doesn't support borrowing, neither with variable nor 
 - [variableDebtSTETH](https://etherscan.io/address/0xde2c414b671d2db93617d1592f0490c13674de24)
 - [stableDebtSTETH](https://etherscan.io/address/0x8180949ac41ef18e844ff8dafe604a195d86aea9)
 - [DefaultReserveInterestRateStrategy](https://etherscan.io/address/0xff04ed5f7a6C3a0F1e5Ea20617F8C6f513D5A77c)
-Steps the proposal will execute: start a vote to add stETH as a new token.
+  Steps the proposal will execute: start a vote to add stETH as a new token.
 
 #### Security Considerations
 
@@ -203,7 +203,7 @@ Lido faces smart contract risks. To mitigate these, Lido has been audited multip
 
 Lido is a DAO. Decisions in the Lido DAO are made through proposals and votes - community members manage protocol parameters, node operators, oracle members, and more. The Lido staking infrastructure for stETH consists of 22 node operators, with a focus on decentralization.
 Lido relies on a set of oracles to report staking rewards to the smart contracts. Their maximum possible impact is limited by the [recent upgrade](https://github.com/lidofinance/lido-improvement-proposals/blob/develop/LIPS/lip-2.md#sanity-checks-the-oracles-reports-by-configurable-values) (limit oracles report change by 10% APR increase in stake and 5% decrease in stake), and the operators of oracles are all well-known entities: Stakefish, Certus One, Chorus One, Staking Facilities, DSRV, Blockscape, Everstake, SkillZ, RockX, Allnodes, P2P Validator, and others.
-Read further in Lido [documentation](https://docs.lido.fi/token-guides/steth-superuser-functions/).
+Read further in Lido [documentation](/token-guides/steth-superuser-functions/).
 
 **Market risk**
 

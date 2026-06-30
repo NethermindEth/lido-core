@@ -23,14 +23,14 @@ Adoption of the agreement complements audits and the ongoing Immunefi Lido bug b
 
 On-chain Safe Harbor Agreement Contract can be found at **0xe19f54e8322214839a87408f084aa14ebefe9e87** ([etherscan](https://etherscan.io/address/0xe19f54e8322214839a87408f084aa14ebefe9e87), [blockscout](https://eth.blockscout.com/address/0xE19F54E8322214839A87408f084aA14eBEfe9E87)).
 
-**Bounty Terms,** predetermined rewards for successful Whitehats that recover protocol funds (for more information, review the [Safe Harbor](https://frameworks.securityalliance.org/safe-harbor/scope-terms)):
+**Bounty Terms,** predetermined rewards for successful Whitehats that recover protocol funds (for more information, review the [Safe Harbor](https://frameworks.securityalliance.org/safe-harbor/scope-terms/)):
 
 - **Percentage**: 10.0% of the recovered amount
 - **Bounty Cap (USD)**: $2,000,000 (*the maximum bounty amount for a single Whitehat)*
 - **Aggregate Cap (USD)**: $2,000,000 (*the maximum total bounty payout across all Whitehats for a single incident; bounties will be distributed pro rata)*
 - **Retainable**: False (*Whitehats are required to return all recovered funds to the protocol, which will then pay out the bounty after verification).*
     The compensation for Whitehats will be distributed via a dedicated Lido DAO governance vote, once the vulnerability is resolved and malicious actions are stopped.
-    It’s recommended to issue such payout using Insurance Fund assets.
+    It’s recommended to issue such payout using Reserve Fund assets.
 - **Identity**: Anonymous (*by default, Whitehats are allowed to remain anonymous and are not required to provide any information about themselves to the protocol, except in cases where we reasonably expect that a Whitehat might be in breach of the Diligence Requirements, see the Diligence Requirements section below).*
 - **Diligence Requirements:**
     As a condition to eligibility for any bounty under the Safe Harbor program, a Whitehat represents, warrants, and covenants that they:
@@ -57,9 +57,9 @@ Security Team, [safeharbor@lido.fi](mailto:safeharbor@lido.fi)
 
 **Chains & Asset Recovery Addresses** (*addresses controlled by the protocol that recovered protocol funds will be returned to by the Whitehat*):
 
-Aragon Voting, [0x2e59A20f205bB85a89C53f1936454680651E618e](https://docs.lido.fi/deployed-contracts/#dao-contracts)
+Aragon Voting, [0x2e59A20f205bB85a89C53f1936454680651E618e](/deployed-contracts/#dao-contracts)
 
-Aragon Voting was chosen because it provides a predictable, resilient, and timely decision-making framework for both routine operations and potential emergency scenarios. Its use enables Lido DAO to respond quickly, avoiding the extended governance delays that can arise under Dual Governance. By directing all recovered assets to the Aragon Voting contract, those assets remain fully under the control of the Lido DAO. Any subsequent action — such as redistribution, user compensation, or other follow-up steps — will therefore require explicit approval through Lido DAO governance. If a Whitehat needs to return ETH to the Recovery Address, the ETH must first be wrapped into wETH. As the initiative evolves, the implementation of a separate AssetRecoveryVault, similar to the InsuranceFund, may be considered.
+Aragon Voting was chosen because it provides a predictable, resilient, and timely decision-making framework for both routine operations and potential emergency scenarios. Its use enables Lido DAO to respond quickly, avoiding the extended governance delays that can arise under Dual Governance. By directing all recovered assets to the Aragon Voting contract, those assets remain fully under the control of the Lido DAO. Any subsequent action — such as redistribution, user compensation, or other follow-up steps — will therefore require explicit approval through Lido DAO governance. If a Whitehat needs to return ETH to the Recovery Address, the ETH must first be wrapped into wETH. As the initiative evolves, the implementation of a separate AssetRecoveryVault may be considered.
 
 **Accounts**
 
