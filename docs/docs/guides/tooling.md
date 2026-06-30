@@ -1,30 +1,20 @@
-# Tooling Overview
+# Off-chain Components Overview
 
-Summary of tooling used in Lido: Oracle, Validator Ejector, Council Daemon, and Keys API.
+Overview of core infrastructure components used in the Lido protocol.
 
 ## Oracle
 
 Oracle daemon for Lido decentralized staking service.
 
-- **Version**: 6.0.2
-- **Docker image**: sha256:1b0501724c9c3e00dc6c03b663dfccc5af545a8bacc9543bbc5456d408d6f098, [lidofinance/oracle@sha256-1b0501724c9c3e00dc6c03b663dfccc5af545a8bacc9543bbc5456d408d6f098](https://hub.docker.com/layers/lidofinance/oracle/6.0.2/images/sha256-1b0501724c9c3e00dc6c03b663dfccc5af545a8bacc9543bbc5456d408d6f098)
-- **Commit hash**: [lidofinance/lido-oracle@1070513](https://github.com/lidofinance/lido-oracle/commit/10705137a8be0c4b9f4fb52bfdb8ece12d77cb69)
-- **Last update date**: 30 September, 2025
-- [**Repository**](https://github.com/lidofinance/lido-oracle/tree/6.0.2)
-- [**Documentation**](/guides/oracle-operator-manual)
-- [**Audit Report for v6**](https://github.com/lidofinance/audits/blob/main/Composable%20Security%20Lido%20Oracle%20V6%20Audit%20Report.pdf)
-- [**Audit Report for v6.0.2**](https://github.com/lidofinance/audits/blob/main/Composable%20Security%20Lido%20Oracle%20V6_0_2%20Audit%20Report.pdf)
-
-## Oracle V7 (AccountingOracle)
-
-- **Version**: 7.0.0
-- **Docker image**: sha256:d131169b163831daeed94d88280d8a6ee4e3509dd4798c2acdc47e3dc1de7f60, [lidofinance/oracle@sha256-d131169b163831daeed94d88280d8a6ee4e3509dd4798c2acdc47e3dc1de7f60](https://hub.docker.com/layers/lidofinance/oracle/7.0.0/images/sha256-d131169b163831daeed94d88280d8a6ee4e3509dd4798c2acdc47e3dc1de7f60)
-- **Commit hash**: [lidofinance/lido-oracle@b6e546b](https://github.com/lidofinance/lido-oracle/commit/b6e546bd38e73f23fa4e3edd9502e34ec5eb62ae)
-- **Last update date**: 16 December 2025
-- [**Repository**](https://github.com/lidofinance/lido-oracle/tree/7.0.0)
-- [**Documentation**](/guides/oracle-operator-manual)
-- [**Composable Security Audit Report**](https://github.com/lidofinance/audits/blob/main/Composable%20Security%20Lido%20V3%20Oracle%20V7%20Audit%20Report%20-%2012-2025.pdf)
-- [**Certora Audit Report**](https://github.com/lidofinance/audits/blob/main/Certora%20Lido%20V3%20Oracle%20V7%20Audit%20Report%20-%2012-2025.pdf)
+- **Version**: 7.1.0
+- **Docker image**: sha256:3dffe7e885a01961777d3cdebe1d8d0bdb988e90a14e44d18ae33b6ccb230993, [lidofinance/oracle@sha256-3dffe7e885a01961777d3cdebe1d8d0bdb988e90a14e44d18ae33b6ccb230993](https://hub.docker.com/layers/lidofinance/oracle/7.1.0/images/sha256-3dffe7e885a01961777d3cdebe1d8d0bdb988e90a14e44d18ae33b6ccb230993)
+- **Commit hash**: [lidofinance/lido-oracle@b2e9296](https://github.com/lidofinance/lido-oracle/commit/b2e92969fd35b2a1838667a290ded649ca33fbf5)
+- **Last update date**: 10 March 2026
+- [**Repository**](https://github.com/lidofinance/lido-oracle/tree/7.1.0)
+- [**Documentation**](/guides/oracle-operator-manual/)
+- [**Audit Report for v7.0.0 (Certora)**](https://github.com/lidofinance/audits/blob/main/Certora%20Lido%20V3%20Oracle%20V7%20Audit%20Report%20-%2012-2025.pdf)
+- [**Audit Report for v7.0.0 (Composable Security)**](https://github.com/lidofinance/audits/blob/main/Composable%20Security%20Lido%20V3%20Oracle%20V7%20Audit%20Report%20-%2012-2025.pdf)
+- [**Audit Report for v7.1.0 (Composable Security)**](https://github.com/lidofinance/audits/blob/main/Composable%20Security%20Lido%20Oracle%20V7_1%20Audit%20Report.pdf)
 
 ## Validator Ejector
 
@@ -35,18 +25,40 @@ Daemon service which loads LidoOracle events for validator exits and sends out e
 - **Commit hash**: [lidofinance/validator-ejector@28ae303](https://github.com/lidofinance/validator-ejector/commit/28ae303c3306fa9808b3bcfb8ec6a8ab6af06d02)
 - **Last update date**: 21 Aug, 2025
 - [**Repository**](https://github.com/lidofinance/validator-ejector/tree/1.9.0#readme)
-- [**Documentation**](/guides/validator-ejector-guide)
+- [**Documentation**](/guides/validator-ejector-guide/)
 
 ## Council daemon
 
 The Lido Council Daemon monitors deposit contract keys.
 
-- **Version**: 3.3.0
-- **Docker image**: sha256:35b6807baf1b509b48e7f0ef2f85542c259ed4e48a0a5d469dcc4b388fea680e, [lidofinance/lido-council-daemon@sha256-35b6807baf1b509b48e7f0ef2f85542c259ed4e48a0a5d469dcc4b388fea680e](https://hub.docker.com/layers/lidofinance/lido-council-daemon/3.3.0/images/sha256-35b6807baf1b509b48e7f0ef2f85542c259ed4e48a0a5d469dcc4b388fea680e?context=explore)
-- Commit hash: [lidofinance/lido-council-daemon@0ac715d](https://github.com/lidofinance/lido-council-daemon/commit/77ecd8fbf74a06b2f92c6e6cdd344ef4ee6f33b8)
-- **Last update date**: 31 October, 2024
-- [**Repository**](https://github.com/lidofinance/lido-council-daemon/tree/3.3.0)
-- [**Documentation**](/guides/deposit-security-manual)
+- **Version**: 3.7.0
+- **Docker image**: sha256:f68b31ee6d02c40dfaf471683e27aec3e5b27f20cd58e6588a6d34cab4ca59ed, [lidofinance/lido-council-daemon@sha256:f68b31ee6d02c40dfaf471683e27aec3e5b27f20cd58e6588a6d34cab4ca59ed](https://hub.docker.com/layers/lidofinance/lido-council-daemon/3.7.0/images/sha256-f68b31ee6d02c40dfaf471683e27aec3e5b27f20cd58e6588a6d34cab4ca59ed)
+- Commit hash: [lidofinance/lido-council-daemon@03f4325d](https://github.com/lidofinance/lido-council-daemon/commit/3f4325d6ecd95b54ab3db730878be2ff288e33bc)
+- **Last update date**: 2 April, 2026
+- [**Repository**](https://github.com/lidofinance/lido-council-daemon/tree/3.7.0)
+- [**Documentation**](/guides/deposit-security-manual/)
+
+## Depositor Bot
+
+Bot that submits deposit transactions to the Lido protocol once the Deposit Security Committee quorum is reached.
+
+- **Version**: 5.5.1
+- **Docker image**: sha256:bbacf8afbbb2be8b14efcfa0d03b4e8b01a0abe4ba87793d1684eeff5b4eb1a8, [lidofinance/depositor-bot@sha256-bbacf8afbbb2be8b14efcfa0d03b4e8b01a0abe4ba87793d1684eeff5b4eb1a8](https://hub.docker.com/layers/lidofinance/depositor-bot/5.5.1/images/sha256-bbacf8afbbb2be8b14efcfa0d03b4e8b01a0abe4ba87793d1684eeff5b4eb1a8)
+- **Commit hash**: [lidofinance/depositor-bot@89fbbf8](https://github.com/lidofinance/depositor-bot/commit/89fbbf8deae2b93841f5b657b8865ff3d0c762d5)
+- **Last update date**: 21 April, 2026
+- [**Repository**](https://github.com/lidofinance/depositor-bot/tree/5.5.1)
+- [**Documentation**](/guides/depositor-bot)
+
+## Reward Distribution Bot
+
+Bot that distributes node-operator rewards in the Curated and Simple DVT staking modules.
+
+- **Version**: 1.1.0
+- **Docker image**: sha256:610609ad79a31bd4973299f3744170199732ad8456a18dccd19a9a5b5798977e, [lidofinance/nor-reward-distribution-bot@sha256-610609ad79a31bd4973299f3744170199732ad8456a18dccd19a9a5b5798977e](https://hub.docker.com/layers/lidofinance/nor-reward-distribution-bot/1.1.0/images/sha256-610609ad79a31bd4973299f3744170199732ad8456a18dccd19a9a5b5798977e)
+- **Commit hash**: [lidofinance/nor-reward-distribution-bot@1e37b0a](https://github.com/lidofinance/nor-reward-distribution-bot/commit/1e37b0abb72200cbfed6590704e0bdab3da789dc)
+- **Last update date**: 21 April, 2026
+- [**Repository**](https://github.com/lidofinance/nor-reward-distribution-bot/tree/1.1.0)
+- [**Documentation**](/guides/reward-distributor-bot)
 
 ## Keys API
 
@@ -57,4 +69,4 @@ Lido keys HTTP API.
 - **Commit hash**: [lidofinance/lido-keys-api@99d4d4d](https://github.com/lidofinance/lido-keys-api/commit/99d4d4d99878a192028bb391251976d7fce53ba8)
 - **Last update date**: 1 April, 2025
 - [**Repository**](https://github.com/lidofinance/lido-keys-api/tree/2.2.1)
-- [**Documentation**](/guides/kapi-guide)
+- [**Documentation**](/guides/kapi-guide/)

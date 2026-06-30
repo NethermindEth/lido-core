@@ -1,7 +1,8 @@
 # Lido cross-chain tokens adoption guide
 
-:::warning Disclaimer
-This guide provides recommendations supplied by the [Network Expansion Committee (NEC)](https://snapshot.org/#/lido-snapshot.eth/proposal/0x7cdf1af7cfeb472ae202c45fb6d7e952bb34bfcbc82113549986b2bc2d5f54c5). Following these recommendations increases the likelihood of recognition by the Committee, but does not guarantee it. Moreover, the Lido DAO vote, with a quorum established, can override any NEC decision at any time, even if it has already been implemented and released. Therefore, NEC makes no warranties, express or implied, and disclaims all implied warranties, including any warranty of the likelihood of the recognition or rejection by the Lido DAO.
+:::warning Outdated due to the Chainlink partnership
+
+Per the [Lido DAO mandate](https://snapshot.box/#/s:lido-snapshot.eth/proposal/0xf842517c2ffba082efac87ec43365e86548adb38e24d1446d850c7d7b979c423), the Lido Ecosystem is working to establish [Chainlink CCIP as the official default cross-chain infrastructure for wstETH](https://research.lido.fi/t/announcing-strategic-partnership-with-chainlink-on-adopting-ccip-as-the-official-default-cross-chain-infrastructure-for-wsteth/10871). The bridging architecture and recommendations outlined here reflect the current pre-CCIP setup and will be revised as the integration is rolled out.
 :::
 
 ## TL;DR
@@ -160,7 +161,7 @@ There are two main options:
 
 As a reference implementation of aggregations consider
 [Wormhole x Axelar | Lido Bridge: Implementation for wstETH on BNB Chain](https://research.lido.fi/t/wormhole-x-axelar-lido-bridge-implementation-for-wsteth-on-bnb-chain/6012/3).
-For the deployed addresses see [this](https://docs.lido.fi/deployed-contracts/#binance-smart-chain-bsc).
+For the deployed addresses see [this](/deployed-contracts/#binance-smart-chain-bsc).
 
 ### R-5-transient: Pre robust token bridging provider
 
@@ -186,7 +187,7 @@ Non-rollup examples:
 [a.DI (Aave Delivery Infrastructure)](https://github.com/lidofinance/aave-delivery-infrastructure). It was used to bridge governance to Binance Smart Chain (BSC).
 See forum post [Wormhole x Axelar | Lido Bridge: Implementation for wstETH on BNB Chain](https://research.lido.fi/t/wormhole-x-axelar-lido-bridge-implementation-for-wsteth-on-bnb-chain/6012/3) for more details.
 
-For more rollup examples, see Governance Bridge Executors at https://docs.lido.fi/deployed-contracts/#lido-multichain. The contracts originate from [Aave Governance Cross-Chain Bridges](https://github.com/aave/governance-crosschain-bridges) and can be found at https://github.com/lidofinance/governance-crosschain-bridges and [PRs](https://github.com/lidofinance/governance-crosschain-bridges/pulls).
+For more rollup examples, see [Governance Bridge Executors](/deployed-contracts/#lido-multichain). The contracts originate from [Aave Governance Cross-Chain Bridges](https://github.com/aave/governance-crosschain-bridges) and can be found at https://github.com/lidofinance/governance-crosschain-bridges and [PRs](https://github.com/lidofinance/governance-crosschain-bridges/pulls).
 
 ### R-6-transient: Pre bridging L1 Lido DAO decisions
 
@@ -206,8 +207,9 @@ To provide the capability to react fast and reduce losses in case of a security 
 
 The bridge endpoint contracts should have the ability to set the resume and pause roles holders on a case-by-case basis. For the pause role, there should be at least two holders possible to be able to assign the dedicated Emergency Multisig which is [ratified by the Lido DAO](https://snapshot.org/#/lido-snapshot.eth/proposal/0xfe2a6a6506a642b616118363bc29aa83dd9ef2ec80447bb607a8f52c0a96aed0) as the second role holder.
 
-To curb the multisig's power, it is proposed to use the "Gate Seals" mechanic. The mechanic limits the pause duration and restricts the capability to pause to a single use. To grant the capability repeatedly, the Lido DAO vote is required. The mechanic has been implemented, e.g., for withdrawals in the Lido protocol on Ethereum in two parts:
-- one-time disposable pauser contact [Gate Seals](https://github.com/lidofinance/gate-seals);
+To curb the multisig's power, it is proposed to use the CircuitBreaker mechanic. The mechanic limits the pause duration and restricts the capability to pause to a single use. To grant the capability repeatedly, the Lido DAO vote is required. The mechanic has been implemented, e.g., for withdrawals in the Lido protocol on Ethereum in two parts:
+
+- pauser contract [CircuitBreaker](/contracts/circuit-breaker);
 - [PausableUntil](https://github.com/lidofinance/lido-dao/blob/master/contracts/0.8.9/utils/PausableUntil.sol) contract (inherited by [WithdrawalQueue](https://github.com/lidofinance/lido-dao/blob/master/contracts/0.8.9/WithdrawalQueue.sol)).
 
 ### R-8: The contracts state
@@ -317,66 +319,69 @@ Notation used:
 - `Emergency Brakes L2 Multisig` - Emergency Multisig on L2 (the same participants but using the L2 Safe instance).
 
 **L1 Custom Bridge Endpoint**
+
 - Upgradeable
-	- Proxy admin is `Lido Agent`
+  - Proxy admin is `Lido Agent`
 - Admin is `Lido Agent`
 - Deposits pausable by
-	- `Lido Agent`
-	- `Emergency Brakes Multisig`
+  - `Lido Agent`
+  - `Emergency Brakes L1 Multisig`
 - Deposits resumable by
-	- `Lido Agent`
+  - `Lido Agent`
 - Withdrawals pausable by
-	- `Lido Agent`
-	- `Emergency Brakes Multisig`
+  - `Lido Agent`
+  - `Emergency Brakes L1 Multisig`
 - Withdrawals resumable by
-	- `Lido Agent`
+  - `Lido Agent`
 
 **L2 Governance Executor**
 
 - The only allow-listed L1 execution sender is `Lido Agent`
 
 **L2 Custom Bridge Endpoint**
+
 - Upgradeable
-	- Proxy admin is `L2 Governance Executor`
+  - Proxy admin is `L2 Governance Executor`
 - Admin is `L2 Governance Executor`
 - Deposits pausable by
-	- `L2 Governance Executor`
-	- `Emergency Brakes Multisig`
+  - `L2 Governance Executor`
+  - `Emergency Brakes L2 Multisig`
 - Deposits resumable by
-	- `L2 Governance Executor`
+  - `L2 Governance Executor`
 - Withdrawals pausable by
-	- `L2 Governance Executor`
-	- `Emergency Brakes Multisig`
+  - `L2 Governance Executor`
+  - `Emergency Brakes L2 Multisig`
 - Withdrawals resumable by
-	- `L2 Governance Executor`
+  - `L2 Governance Executor`
 
 **L2 Token Bridged**
+
 - Upgradeable
-	- Proxy admin is `L2 Governance Executor`
+  - Proxy admin is `L2 Governance Executor`
 - Mint is allowed only by `L2 Custom Bridge`
 - Optionally applicable (if `L2 Custom Bridge` doesn't support these)
   - Admin is `L2 Governance Executor`
   - Withdrawals pausable by
-      - `L2 Governance Executor`
-      - `Emergency Brakes Multisig`
+    - `L2 Governance Executor`
+    - `Emergency Brakes L2 Multisig`
   - Withdrawals resumable by
-      - `L2 Governance Executor`
+    - `L2 Governance Executor`
   - Deposits pausable by
-      - `L2 Governance Executor`
-      - `Emergency Brakes Multisig`
+    - `L2 Governance Executor`
+    - `Emergency Brakes L2 Multisig`
   - Deposits resumable by
-      - `L2 Governance Executor`
+    - `L2 Governance Executor`
 
 ### Mainnet proposed configuration
 
 - `wstETH` - the wstETH token on L1
-	- `0x7f39c581f595b53c5cb19bd0b3f8da6c935e2ca0`
+  - `0x7f39c581f595b53c5cb19bd0b3f8da6c935e2ca0`
 - `Lido Agent` - Lido DAO Aragon Agent
-	- `0x3e40D73EB977Dc6a537aF587D48316feE66E9C8c`
+  - `0x3e40D73EB977Dc6a537aF587D48316feE66E9C8c`
 - `Emergency Brakes L1 Multisig`
-	- `0x73b047fe6337183A454c5217241D780a932777bD`
+  - `0x73b047fe6337183A454c5217241D780a932777bD`
 - `Emergency Brakes L2 Multisig`
-	- ask the NEC for the address (the deployed Safe instance would be needed)
+  - ask the NEC for the address (the deployed Safe instance would be needed)
 
 ### Testnet Holesky proposed configuration
 
@@ -385,24 +390,24 @@ Please, deploy to Holešky if possible because it has better long-term exposure 
 :::
 
 - `wstETH` - the wstETH token on L1
-	- `0x8d09a4502Cc8Cf1547aD300E066060D043f6982D`
+  - `0x8d09a4502Cc8Cf1547aD300E066060D043f6982D`
 - `Lido Agent` - Lido DAO Aragon Agent
-	- `0xE92329EC7ddB11D25e25b3c21eeBf11f15eB325d`
+  - `0xE92329EC7ddB11D25e25b3c21eeBf11f15eB325d`
 - `Emergency Brakes L1 Multisig`
-	- `0xa5F1d7D49F581136Cf6e58B32cBE9a2039C48bA1` (EOA)
+  - `0xa5F1d7D49F581136Cf6e58B32cBE9a2039C48bA1` (EOA)
 - `Emergency Brakes L2 Multisig`
-	- `0xa5F1d7D49F581136Cf6e58B32cBE9a2039C48bA1` (EOA)
+  - `0xa5F1d7D49F581136Cf6e58B32cBE9a2039C48bA1` (EOA)
 
 ### Testnet Sepolia proposed configuration
 
 - `wstETH` - the wstETH token on L1
-	- `0xB82381A3fBD3FaFA77B3a7bE693342618240067b`
+  - `0xB82381A3fBD3FaFA77B3a7bE693342618240067b`
 - `Lido Agent` - Lido DAO Aragon Agent
-	- `0x32A0E5828B62AAb932362a4816ae03b860b65e83`
+  - `0x32A0E5828B62AAb932362a4816ae03b860b65e83`
 - `Emergency Brakes L1 Multisig`
-	- `0xa5F1d7D49F581136Cf6e58B32cBE9a2039C48bA1` (EOA)
+  - `0xa5F1d7D49F581136Cf6e58B32cBE9a2039C48bA1` (EOA)
 - `Emergency Brakes L2 Multisig`
-	- `0xa5F1d7D49F581136Cf6e58B32cBE9a2039C48bA1` (EOA)
+  - `0xa5F1d7D49F581136Cf6e58B32cBE9a2039C48bA1` (EOA)
 
 ### Other questions
 
@@ -419,7 +424,7 @@ Now, after establishing the [NEC](https://snapshot.org/#/s:lido-snapshot.eth/pro
 If the bridged token endpoints are recognized, in general, it means:
 
 - the integration is highlighted on the frontend pages: [landing](https://lido.fi/lido-multichain), [widget](https://stake.lido.fi/), and [ecosystem pages](https://lido.fi/lido-ecosystem);
-- the newly appeared integration announcement is published in the Lido's [blog](https://blog.lido.fi/category/l2/) and [twitter](https://twitter.com/LidoFinance);
+- the newly appeared integration announcement is published in the Lido's [blog](https://blog.lido.fi/category/l2/) and [X/Twitter](https://x.com/LidoFinance);
 - the endpoint contracts get monitored by means of [Lido alerting system](https://github.com/lidofinance/alerting-forta/);
 - the opportunity for obtaining extra support, potentially from [LEGO](https://lido.fi/lego) or [Liquidity observation Labs](https://lido.fi/governance#liquidity-observation-labs), becomes available. For the details one should [reach out to ProRel](https://tally.so/r/waeRLX).
 - the endpoint contracts are under the Lido's [bug bounty program](https://immunefi.com/bug-bounty/lido/);
@@ -451,11 +456,9 @@ graph TD;
   B-- No -->D
 ```
 
-
-
 ## References
 
-- Deployed contracts addresses https://docs.lido.fi/deployed-contracts/#lido-multichain
+- [Deployed contracts addresses](/deployed-contracts/#lido-multichain)
 - LOL (Liquidity Observation Labs) https://research.lido.fi/t/liquidity-observation-lab-lol-liquidity-strategy-and-application-to-curve-steth-eth-pool/5335
 - Lido L2 reference bridging contracts (Arbitrum and Optimism) https://github.com/lidofinance/lido-l2
 - Unofficial guidelines (like the 1st iteration of the guide) https://research.lido.fi/t/unofficial-guidelines-for-bridging-solutions-network-expansion-workgroup/5790

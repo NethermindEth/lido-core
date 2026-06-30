@@ -60,7 +60,7 @@ For more in-depth technical description, please read through the full project [s
 
 #### Starting a new Easy Track motion
 To create a new Easy Track motion, follow these steps:
-1. proceed to the [Easy Track UI](https://easytrack.lido.fi);
+1. proceed to the [Easy Track UI](https://dao.lido.fi/easy-track/motions);
 2. click the ‘Connect' button top right;
 3. make sure the checkbox next to 'Terms of Use' and 'Privacy Notice' is selected;
 4. select the app you want to use to connect your wallet, make sure to use an address with permission to launch motions;
@@ -80,7 +80,7 @@ Please note that the motion duration may be different for testnet deployment.
 If you want to use a multisig to create a motion, follow these steps to connect the wallet:
 1. pick the 'Wallet Connect' option;
 2. copy the QR code by clicking the 'Copy to clipboard' button under the code;
-3. proceed to the [Safe](https://safe.global/), connect your wallet by clicking 'Connect your wallet' button top right;
+3. proceed to the [Safe](https://app.safe.global/), connect your wallet by clicking 'Connect your wallet' button top right;
 4. open the 'Apps' section in the drawer menu on the left and find the Wallet Connect Safe app in the list;
 5. paste the code into the field on the left.
 
